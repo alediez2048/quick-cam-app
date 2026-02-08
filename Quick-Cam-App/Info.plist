@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleIdentifier</key>
+	<string>com.quickcam.Quick-Cam-App</string>
+	<key>CFBundleName</key>
+	<string>Quick-Cam-App</string>
+	<key>CFBundleDisplayName</key>
+	<string>Quick Cam</string>
+	<key>CFBundleExecutable</key>
+	<string>Quick-Cam-App</string>
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+	<key>CFBundleShortVersionString</key>
+	<string>1.0</string>
+	<key>CFBundleVersion</key>
+	<string>1</string>
+	<key>LSMinimumSystemVersion</key>
+	<string>14.0</string>
+	<key>NSCameraUsageDescription</key>
+	<string>Quick-Cam needs camera access to record videos</string>
+	<key>NSMicrophoneUsageDescription</key>
+	<string>Quick-Cam needs microphone access to record audio with videos</string>
+	<key>NSSpeechRecognitionUsageDescription</key>
+	<string>Quick-Cam needs speech recognition to auto-generate captions for your videos</string>
+	<key>NSPrincipalClass</key>
+	<string>NSApplication</string>
+</dict>
+</plist>
