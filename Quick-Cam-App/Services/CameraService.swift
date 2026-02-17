@@ -20,7 +20,11 @@ protocol CameraServiceProtocol: AnyObject {
     func startRecording()
     func stopRecording()
 
+    var isPaused: Bool { get set }
     var audioLevel: Float { get }
+
+    func pauseRecording()
+    func resumeRecording()
 }
 
 class CameraService: NSObject, ObservableObject, CameraServiceProtocol {
@@ -32,6 +36,7 @@ class CameraService: NSObject, ObservableObject, CameraServiceProtocol {
     @Published var isRecording = false
     @Published var recordedVideoURL: URL?
     @Published var error: String?
+    @Published var isPaused = false
     @Published var audioLevel: Float = -160.0
 
     private let captureSession = AVCaptureSession()
@@ -272,8 +277,25 @@ class CameraService: NSObject, ObservableObject, CameraServiceProtocol {
 
     func stopRecording() {
         guard isRecording else { return }
+        isPaused = false
         sessionQueue.async { [weak self] in
             self?.movieOutput.stopRecording()
+        }
+    }
+
+    func pauseRecording() {
+        guard isRecording, !isPaused else { return }
+        isPaused = true
+        sessionQueue.async { [weak self] in
+            self?.movieOutput.pauseRecording()
+        }
+    }
+
+    func resumeRecording() {
+        guard isRecording, isPaused else { return }
+        isPaused = false
+        sessionQueue.async { [weak self] in
+            self?.movieOutput.resumeRecording()
         }
     }
 }
@@ -282,6 +304,7 @@ extension CameraService: AVCaptureFileOutputRecordingDelegate {
     func fileOutput(_ output: AVCaptureFileOutput, didFinishRecordingTo outputFileURL: URL, from connections: [AVCaptureConnection], error: Error?) {
         DispatchQueue.main.async {
             self.isRecording = false
+            self.isPaused = false
             self.audioLevel = -160.0
             if let error = error {
                 self.error = error.localizedDescription

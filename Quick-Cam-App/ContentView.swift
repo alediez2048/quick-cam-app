@@ -96,6 +96,16 @@ struct ContentView: View {
                 recordingTimer = nil
             }
         }
+        .onChange(of: cameraViewModel.isPaused) { _, isPaused in
+            if isPaused {
+                recordingTimer?.invalidate()
+                recordingTimer = nil
+            } else if cameraViewModel.isRecording {
+                recordingTimer = Timer.scheduledTimer(withTimeInterval: 0.1, repeats: true) { _ in
+                    recordingDuration += 0.1
+                }
+            }
+        }
     }
 }
 

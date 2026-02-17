@@ -11,12 +11,15 @@ class MockCameraService: CameraServiceProtocol {
     var isRecording = false
     var recordedVideoURL: URL?
     var error: String?
+    var isPaused = false
     var audioLevel: Float = -160.0
 
     var session: AVCaptureSession { AVCaptureSession() }
 
     var startRecordingCallCount = 0
     var stopRecordingCallCount = 0
+    var pauseRecordingCallCount = 0
+    var resumeRecordingCallCount = 0
 
     func checkAuthorization() {}
     func setupAndStartSession() {}
@@ -31,6 +34,16 @@ class MockCameraService: CameraServiceProtocol {
     func stopRecording() {
         stopRecordingCallCount += 1
         isRecording = false
+    }
+
+    func pauseRecording() {
+        pauseRecordingCallCount += 1
+        isPaused = true
+    }
+
+    func resumeRecording() {
+        resumeRecordingCallCount += 1
+        isPaused = false
     }
 }
 
@@ -143,5 +156,49 @@ final class CameraViewModelTests: XCTestCase {
         mockService.audioLevel = -20.0
         XCTAssertEqual(mockService.audioLevel, -20.0,
                        "Mock service audioLevel should update")
+    }
+
+    // MARK: - Pause/Resume Tests
+
+    func testPauseRecordingCallsService() {
+        // Start recording first (wait for countdown)
+        sut.startRecording()
+        RunLoop.current.run(until: Date().addingTimeInterval(3.2))
+        // Sync isRecording from mock (no Combine binding in tests)
+        sut.isRecording = true
+
+        sut.pauseRecording()
+
+        XCTAssertEqual(mockService.pauseRecordingCallCount, 1,
+                       "pauseRecording should forward to service")
+    }
+
+    func testResumeRecordingCallsService() {
+        // Start recording and pause
+        sut.startRecording()
+        RunLoop.current.run(until: Date().addingTimeInterval(3.2))
+        // Sync state from mock (no Combine binding in tests)
+        sut.isRecording = true
+        sut.pauseRecording()
+        sut.isPaused = true
+
+        sut.resumeRecording()
+
+        XCTAssertEqual(mockService.resumeRecordingCallCount, 1,
+                       "resumeRecording should forward to service")
+    }
+
+    func testPauseOnlyWorksWhileRecording() {
+        // Not recording, not counting down
+        sut.pauseRecording()
+        XCTAssertEqual(mockService.pauseRecordingCallCount, 0,
+                       "pauseRecording should do nothing when not recording")
+
+        // During countdown
+        sut.startRecording()
+        XCTAssertTrue(sut.isCountingDown)
+        sut.pauseRecording()
+        XCTAssertEqual(mockService.pauseRecordingCallCount, 0,
+                       "pauseRecording should do nothing during countdown")
     }
 }

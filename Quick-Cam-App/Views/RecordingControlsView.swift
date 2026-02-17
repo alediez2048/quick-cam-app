@@ -33,10 +33,10 @@ struct RecordingControlsView: View {
                     VStack(spacing: 4) {
                         HStack(spacing: 6) {
                             Circle()
-                                .fill(.red)
+                                .fill(cameraViewModel.isPaused ? .yellow : .red)
                                 .frame(width: 10, height: 10)
-                            Text("REC")
-                                .foregroundColor(.red)
+                            Text(cameraViewModel.isPaused ? "PAUSED" : "REC")
+                                .foregroundColor(cameraViewModel.isPaused ? .yellow : .red)
                                 .fontWeight(.bold)
                         }
                         Text(formatDuration(recordingDuration))
@@ -98,34 +98,58 @@ struct RecordingControlsView: View {
 
             Spacer()
 
-            // Record button
-            Button(action: {
-                if cameraViewModel.isRecording || cameraViewModel.isCountingDown {
-                    cameraViewModel.stopRecording()
-                } else {
-                    cameraViewModel.startRecording()
+            // Record / Pause / Stop buttons
+            HStack(spacing: 32) {
+                if cameraViewModel.isRecording {
+                    // Pause / Resume button
+                    Button(action: {
+                        if cameraViewModel.isPaused {
+                            cameraViewModel.resumeRecording()
+                        } else {
+                            cameraViewModel.pauseRecording()
+                        }
+                    }) {
+                        ZStack {
+                            Circle()
+                                .fill(.white.opacity(0.15))
+                                .frame(width: 56, height: 56)
+                            Image(systemName: cameraViewModel.isPaused ? "play.fill" : "pause.fill")
+                                .font(.system(size: 24))
+                                .foregroundColor(.white)
+                        }
+                    }
+                    .buttonStyle(.plain)
                 }
-            }) {
-                ZStack {
-                    Circle()
-                        .stroke(lineWidth: 4)
-                        .foregroundColor(.white)
-                        .frame(width: 72, height: 72)
 
+                // Record / Stop button
+                Button(action: {
                     if cameraViewModel.isRecording || cameraViewModel.isCountingDown {
-                        RoundedRectangle(cornerRadius: 4)
-                            .fill(.red)
-                            .frame(width: 28, height: 28)
+                        cameraViewModel.stopRecording()
                     } else {
+                        cameraViewModel.startRecording()
+                    }
+                }) {
+                    ZStack {
                         Circle()
-                            .fill(.red)
-                            .frame(width: 56, height: 56)
+                            .stroke(lineWidth: 4)
+                            .foregroundColor(.white)
+                            .frame(width: 72, height: 72)
+
+                        if cameraViewModel.isRecording || cameraViewModel.isCountingDown {
+                            RoundedRectangle(cornerRadius: 4)
+                                .fill(.red)
+                                .frame(width: 28, height: 28)
+                        } else {
+                            Circle()
+                                .fill(.red)
+                                .frame(width: 56, height: 56)
+                        }
                     }
                 }
+                .buttonStyle(.plain)
+                .disabled(!cameraViewModel.isReady || !cameraViewModel.isSessionRunning)
+                .opacity(cameraViewModel.isReady && cameraViewModel.isSessionRunning ? 1.0 : 0.5)
             }
-            .buttonStyle(.plain)
-            .disabled(!cameraViewModel.isReady || !cameraViewModel.isSessionRunning)
-            .opacity(cameraViewModel.isReady && cameraViewModel.isSessionRunning ? 1.0 : 0.5)
             .padding(.bottom, 40)
         }
     }
