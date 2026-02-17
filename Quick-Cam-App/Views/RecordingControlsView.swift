@@ -24,7 +24,7 @@ struct RecordingControlsView: View {
                     }
                     .pickerStyle(.menu)
                     .frame(maxWidth: 250)
-                    .disabled(cameraViewModel.isRecording)
+                    .disabled(cameraViewModel.isRecording || cameraViewModel.isCountingDown)
                 }
 
                 Spacer()
@@ -82,12 +82,19 @@ struct RecordingControlsView: View {
                         }
                     }
                 )
+                .overlay(
+                    Group {
+                        if cameraViewModel.isCountingDown {
+                            CountdownOverlayView(value: cameraViewModel.countdownValue)
+                        }
+                    }
+                )
 
             Spacer()
 
             // Record button
             Button(action: {
-                if cameraViewModel.isRecording {
+                if cameraViewModel.isRecording || cameraViewModel.isCountingDown {
                     cameraViewModel.stopRecording()
                 } else {
                     cameraViewModel.startRecording()
@@ -99,7 +106,7 @@ struct RecordingControlsView: View {
                         .foregroundColor(.white)
                         .frame(width: 72, height: 72)
 
-                    if cameraViewModel.isRecording {
+                    if cameraViewModel.isRecording || cameraViewModel.isCountingDown {
                         RoundedRectangle(cornerRadius: 4)
                             .fill(.red)
                             .frame(width: 28, height: 28)
@@ -122,5 +129,21 @@ struct RecordingControlsView: View {
         let seconds = Int(duration) % 60
         let tenths = Int((duration * 10).truncatingRemainder(dividingBy: 10))
         return String(format: "%02d:%02d.%d", minutes, seconds, tenths)
+    }
+}
+
+struct CountdownOverlayView: View {
+    let value: Int
+
+    var body: some View {
+        if value > 0 {
+            Text("\(value)")
+                .font(.system(size: 120, weight: .bold, design: .rounded))
+                .foregroundColor(.white)
+                .shadow(color: .black.opacity(0.5), radius: 10, x: 0, y: 4)
+                .id(value)
+                .transition(.scale.combined(with: .opacity))
+                .animation(.easeOut(duration: 0.3), value: value)
+        }
     }
 }

@@ -14,51 +14,61 @@ class CameraViewModel: ObservableObject {
     @Published var isExporting = false
     @Published var isTranscribing = false
     @Published var transcriptionProgress: String = ""
+    @Published var isCountingDown = false
+    @Published var countdownValue = 0
 
-    let cameraService = CameraService()
+    let cameraService: any CameraServiceProtocol
     private let exportService = ExportService()
     private let transcriptionService = TranscriptionService()
     private let recordingsRepository = RecordingsRepository()
     private var cancellables = Set<AnyCancellable>()
+    private var countdownTimer: Timer?
 
     var session: AVCaptureSession {
         cameraService.session
     }
 
-    init() {
-        bindCameraService()
+    convenience init() {
+        self.init(cameraService: CameraService())
     }
 
-    private func bindCameraService() {
-        cameraService.$isRecording
+    init(cameraService: any CameraServiceProtocol) {
+        self.cameraService = cameraService
+        if let observableService = cameraService as? CameraService {
+            bindCameraService(observableService)
+        }
+    }
+
+    private func bindCameraService(_ service: CameraService) {
+        service.$isRecording
             .receive(on: DispatchQueue.main)
             .assign(to: &$isRecording)
 
-        cameraService.$recordedVideoURL
+        service.$recordedVideoURL
             .receive(on: DispatchQueue.main)
             .assign(to: &$recordedVideoURL)
 
-        cameraService.$availableCameras
+        service.$availableCameras
             .receive(on: DispatchQueue.main)
             .assign(to: &$availableCameras)
 
-        cameraService.$selectedCamera
+        service.$selectedCamera
             .receive(on: DispatchQueue.main)
             .assign(to: &$selectedCamera)
 
-        cameraService.$error
+        service.$error
             .receive(on: DispatchQueue.main)
             .assign(to: &$error)
 
-        cameraService.$isSessionRunning
+        service.$isSessionRunning
             .receive(on: DispatchQueue.main)
             .assign(to: &$isSessionRunning)
 
-        cameraService.$isAuthorized
+        service.$isAuthorized
             .receive(on: DispatchQueue.main)
             .assign(to: &$isAuthorized)
 
-        cameraService.$isReady
+        service.$isReady
             .receive(on: DispatchQueue.main)
             .assign(to: &$isReady)
     }
@@ -80,11 +90,42 @@ class CameraViewModel: ObservableObject {
     }
 
     func startRecording() {
-        cameraService.startRecording()
+        guard !isCountingDown && !isRecording else { return }
+        isCountingDown = true
+        countdownValue = 3
+        performCountdown()
     }
 
     func stopRecording() {
+        if isCountingDown {
+            cancelCountdown()
+            return
+        }
         cameraService.stopRecording()
+    }
+
+    func cancelCountdown() {
+        countdownTimer?.invalidate()
+        countdownTimer = nil
+        isCountingDown = false
+        countdownValue = 0
+    }
+
+    private func performCountdown() {
+        countdownTimer?.invalidate()
+        countdownTimer = Timer.scheduledTimer(withTimeInterval: 1.0, repeats: true) { [weak self] timer in
+            guard let self = self else {
+                timer.invalidate()
+                return
+            }
+            self.countdownValue -= 1
+            if self.countdownValue <= 0 {
+                timer.invalidate()
+                self.countdownTimer = nil
+                self.isCountingDown = false
+                self.cameraService.startRecording()
+            }
+        }
     }
 
     func exportToDownloads(title: String, enableCaptions: Bool = false, completion: @escaping (Bool, String?) -> Void) {
