@@ -9,7 +9,10 @@ class ExportService {
         captions: [TimedCaption],
         completion: @escaping (Bool, String?) -> Void
     ) {
-        let downloadsURL = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first!
+        guard let downloadsURL = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first else {
+            completion(false, "Could not access Downloads directory")
+            return
+        }
         let dateFormatter = DateFormatter()
         dateFormatter.dateFormat = "yyyy-MM-dd_HH-mm-ss"
 
