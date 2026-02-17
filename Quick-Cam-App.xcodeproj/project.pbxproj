@@ -9,20 +9,46 @@
 /* Begin PBXBuildFile section */
 		A11111110000000000000001 /* Quick_Cam_AppApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11111110000000000000011 /* Quick_Cam_AppApp.swift */; };
 		A11111110000000000000002 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11111110000000000000012 /* ContentView.swift */; };
-		A11111110000000000000003 /* CameraManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11111110000000000000013 /* CameraManager.swift */; };
 		A11111110000000000000004 /* PreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A11111110000000000000014 /* PreviewView.swift */; };
 		A11111110000000000000005 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = A11111110000000000000015 /* Assets.xcassets */; };
+		A22222220000000000000021 /* RecordedVideo.swift in Sources */ = {isa = PBXBuildFile; fileRef = A22222220000000000000001 /* RecordedVideo.swift */; };
+		A22222220000000000000022 /* TimedCaption.swift in Sources */ = {isa = PBXBuildFile; fileRef = A22222220000000000000002 /* TimedCaption.swift */; };
+		A22222220000000000000023 /* CameraService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A22222220000000000000003 /* CameraService.swift */; };
+		A22222220000000000000024 /* ExportService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A22222220000000000000004 /* ExportService.swift */; };
+		A22222220000000000000025 /* TranscriptionService.swift in Sources */ = {isa = PBXBuildFile; fileRef = A22222220000000000000005 /* TranscriptionService.swift */; };
+		A22222220000000000000026 /* RecordingsRepository.swift in Sources */ = {isa = PBXBuildFile; fileRef = A22222220000000000000006 /* RecordingsRepository.swift */; };
+		A22222220000000000000027 /* CameraViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = A22222220000000000000007 /* CameraViewModel.swift */; };
+		A22222220000000000000028 /* CameraPreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A22222220000000000000008 /* CameraPreviewView.swift */; };
+		A22222220000000000000029 /* RecordingControlsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A22222220000000000000009 /* RecordingControlsView.swift */; };
+		A2222222000000000000002A /* PreviousRecordingsSidebar.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2222222000000000000000A /* PreviousRecordingsSidebar.swift */; };
+		A2222222000000000000002B /* PreviousRecordingCard.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2222222000000000000000B /* PreviousRecordingCard.swift */; };
+		A2222222000000000000002C /* PreviousVideoPreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2222222000000000000000C /* PreviousVideoPreview.swift */; };
+		A2222222000000000000002D /* VideoPlayerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2222222000000000000000D /* VideoPlayerView.swift */; };
+		A2222222000000000000002E /* CroppedVideoPlayerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2222222000000000000000E /* CroppedVideoPlayerView.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
 		A11111110000000000000010 /* Quick-Cam-App.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Quick-Cam-App.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		A11111110000000000000011 /* Quick_Cam_AppApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Quick_Cam_AppApp.swift; sourceTree = "<group>"; };
 		A11111110000000000000012 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
-		A11111110000000000000013 /* CameraManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraManager.swift; sourceTree = "<group>"; };
 		A11111110000000000000014 /* PreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreviewView.swift; sourceTree = "<group>"; };
 		A11111110000000000000015 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
 		A11111110000000000000016 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
 		A11111110000000000000017 /* Quick_Cam_App.entitlements */ = {isa = PBXFileReference; lastKnownFileType = text.plist.entitlements; path = Quick_Cam_App.entitlements; sourceTree = "<group>"; };
+		A22222220000000000000001 /* RecordedVideo.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordedVideo.swift; sourceTree = "<group>"; };
+		A22222220000000000000002 /* TimedCaption.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TimedCaption.swift; sourceTree = "<group>"; };
+		A22222220000000000000003 /* CameraService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraService.swift; sourceTree = "<group>"; };
+		A22222220000000000000004 /* ExportService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ExportService.swift; sourceTree = "<group>"; };
+		A22222220000000000000005 /* TranscriptionService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptionService.swift; sourceTree = "<group>"; };
+		A22222220000000000000006 /* RecordingsRepository.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingsRepository.swift; sourceTree = "<group>"; };
+		A22222220000000000000007 /* CameraViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraViewModel.swift; sourceTree = "<group>"; };
+		A22222220000000000000008 /* CameraPreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraPreviewView.swift; sourceTree = "<group>"; };
+		A22222220000000000000009 /* RecordingControlsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingControlsView.swift; sourceTree = "<group>"; };
+		A2222222000000000000000A /* PreviousRecordingsSidebar.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreviousRecordingsSidebar.swift; sourceTree = "<group>"; };
+		A2222222000000000000000B /* PreviousRecordingCard.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreviousRecordingCard.swift; sourceTree = "<group>"; };
+		A2222222000000000000000C /* PreviousVideoPreview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreviousVideoPreview.swift; sourceTree = "<group>"; };
+		A2222222000000000000000D /* VideoPlayerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoPlayerView.swift; sourceTree = "<group>"; };
+		A2222222000000000000000E /* CroppedVideoPlayerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CroppedVideoPlayerView.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -57,13 +83,58 @@
 			children = (
 				A11111110000000000000011 /* Quick_Cam_AppApp.swift */,
 				A11111110000000000000012 /* ContentView.swift */,
-				A11111110000000000000013 /* CameraManager.swift */,
 				A11111110000000000000014 /* PreviewView.swift */,
+				A22222220000000000000031 /* Models */,
+				A22222220000000000000032 /* Services */,
+				A22222220000000000000033 /* ViewModels */,
+				A22222220000000000000034 /* Views */,
 				A11111110000000000000015 /* Assets.xcassets */,
 				A11111110000000000000016 /* Info.plist */,
 				A11111110000000000000017 /* Quick_Cam_App.entitlements */,
 			);
 			path = "Quick-Cam-App";
+			sourceTree = "<group>";
+		};
+		A22222220000000000000031 /* Models */ = {
+			isa = PBXGroup;
+			children = (
+				A22222220000000000000001 /* RecordedVideo.swift */,
+				A22222220000000000000002 /* TimedCaption.swift */,
+			);
+			path = Models;
+			sourceTree = "<group>";
+		};
+		A22222220000000000000032 /* Services */ = {
+			isa = PBXGroup;
+			children = (
+				A22222220000000000000003 /* CameraService.swift */,
+				A22222220000000000000004 /* ExportService.swift */,
+				A22222220000000000000005 /* TranscriptionService.swift */,
+				A22222220000000000000006 /* RecordingsRepository.swift */,
+			);
+			path = Services;
+			sourceTree = "<group>";
+		};
+		A22222220000000000000033 /* ViewModels */ = {
+			isa = PBXGroup;
+			children = (
+				A22222220000000000000007 /* CameraViewModel.swift */,
+			);
+			path = ViewModels;
+			sourceTree = "<group>";
+		};
+		A22222220000000000000034 /* Views */ = {
+			isa = PBXGroup;
+			children = (
+				A22222220000000000000008 /* CameraPreviewView.swift */,
+				A22222220000000000000009 /* RecordingControlsView.swift */,
+				A2222222000000000000000A /* PreviousRecordingsSidebar.swift */,
+				A2222222000000000000000B /* PreviousRecordingCard.swift */,
+				A2222222000000000000000C /* PreviousVideoPreview.swift */,
+				A2222222000000000000000D /* VideoPlayerView.swift */,
+				A2222222000000000000000E /* CroppedVideoPlayerView.swift */,
+			);
+			path = Views;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -137,8 +208,21 @@
 			files = (
 				A11111110000000000000001 /* Quick_Cam_AppApp.swift in Sources */,
 				A11111110000000000000002 /* ContentView.swift in Sources */,
-				A11111110000000000000003 /* CameraManager.swift in Sources */,
 				A11111110000000000000004 /* PreviewView.swift in Sources */,
+				A22222220000000000000021 /* RecordedVideo.swift in Sources */,
+				A22222220000000000000022 /* TimedCaption.swift in Sources */,
+				A22222220000000000000023 /* CameraService.swift in Sources */,
+				A22222220000000000000024 /* ExportService.swift in Sources */,
+				A22222220000000000000025 /* TranscriptionService.swift in Sources */,
+				A22222220000000000000026 /* RecordingsRepository.swift in Sources */,
+				A22222220000000000000027 /* CameraViewModel.swift in Sources */,
+				A22222220000000000000028 /* CameraPreviewView.swift in Sources */,
+				A22222220000000000000029 /* RecordingControlsView.swift in Sources */,
+				A2222222000000000000002A /* PreviousRecordingsSidebar.swift in Sources */,
+				A2222222000000000000002B /* PreviousRecordingCard.swift in Sources */,
+				A2222222000000000000002C /* PreviousVideoPreview.swift in Sources */,
+				A2222222000000000000002D /* VideoPlayerView.swift in Sources */,
+				A2222222000000000000002E /* CroppedVideoPlayerView.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -1,0 +1,261 @@
+import AVFoundation
+import AppKit
+
+class CameraService: NSObject, ObservableObject {
+    @Published var availableCameras: [AVCaptureDevice] = []
+    @Published var selectedCamera: AVCaptureDevice?
+    @Published var isSessionRunning = false
+    @Published var isAuthorized = false
+    @Published var isReady = false
+    @Published var isRecording = false
+    @Published var recordedVideoURL: URL?
+    @Published var error: String?
+
+    private let captureSession = AVCaptureSession()
+    private var movieOutput = AVCaptureMovieFileOutput()
+    private var currentInput: AVCaptureDeviceInput?
+    let sessionQueue = DispatchQueue(label: "camera.session.queue")
+    private var isConfiguring = false
+
+    var session: AVCaptureSession {
+        captureSession
+    }
+
+    override init() {
+        super.init()
+        discoverCameras()
+    }
+
+    func checkAuthorization() {
+        switch AVCaptureDevice.authorizationStatus(for: .video) {
+        case .authorized:
+            DispatchQueue.main.async {
+                self.isAuthorized = true
+            }
+            setupAndStartSession()
+        case .notDetermined:
+            AVCaptureDevice.requestAccess(for: .video) { [weak self] granted in
+                DispatchQueue.main.async {
+                    self?.isAuthorized = granted
+                }
+                if granted {
+                    self?.setupAndStartSession()
+                } else {
+                    DispatchQueue.main.async {
+                        self?.error = "Camera access denied"
+                    }
+                }
+            }
+        case .denied, .restricted:
+            DispatchQueue.main.async {
+                self.isAuthorized = false
+                self.error = "Camera access denied. Please enable in System Settings > Privacy & Security > Camera"
+            }
+        @unknown default:
+            break
+        }
+    }
+
+    func discoverCameras() {
+        let discoverySession = AVCaptureDevice.DiscoverySession(
+            deviceTypes: [.builtInWideAngleCamera, .external],
+            mediaType: .video,
+            position: .unspecified
+        )
+        availableCameras = discoverySession.devices
+        if selectedCamera == nil {
+            selectedCamera = availableCameras.first
+        }
+    }
+
+    func setupAndStartSession() {
+        sessionQueue.async { [weak self] in
+            self?.configureSession()
+            self?.startRunning()
+        }
+    }
+
+    private func configureSession() {
+        guard !isConfiguring else { return }
+        isConfiguring = true
+
+        captureSession.beginConfiguration()
+
+        for input in captureSession.inputs {
+            captureSession.removeInput(input)
+        }
+        for output in captureSession.outputs {
+            captureSession.removeOutput(output)
+        }
+
+        captureSession.sessionPreset = .high
+
+        guard let camera = selectedCamera else {
+            DispatchQueue.main.async {
+                self.error = "No camera available"
+                self.isReady = false
+            }
+            captureSession.commitConfiguration()
+            isConfiguring = false
+            return
+        }
+
+        do {
+            let input = try AVCaptureDeviceInput(device: camera)
+            if captureSession.canAddInput(input) {
+                captureSession.addInput(input)
+                currentInput = input
+            } else {
+                DispatchQueue.main.async {
+                    self.error = "Cannot add camera input - camera may be in use"
+                    self.isReady = false
+                }
+                captureSession.commitConfiguration()
+                isConfiguring = false
+                return
+            }
+        } catch {
+            DispatchQueue.main.async {
+                self.error = "Failed to access camera: \(error.localizedDescription)"
+                self.isReady = false
+            }
+            captureSession.commitConfiguration()
+            isConfiguring = false
+            return
+        }
+
+        if captureSession.canSetSessionPreset(.hd4K3840x2160) {
+            captureSession.sessionPreset = .hd4K3840x2160
+        } else if captureSession.canSetSessionPreset(.hd1920x1080) {
+            captureSession.sessionPreset = .hd1920x1080
+        }
+
+        if let audioDevice = AVCaptureDevice.default(for: .audio) {
+            do {
+                let audioInput = try AVCaptureDeviceInput(device: audioDevice)
+                if captureSession.canAddInput(audioInput) {
+                    captureSession.addInput(audioInput)
+                }
+            } catch {
+                // Audio not available, continue without it
+            }
+        }
+
+        movieOutput = AVCaptureMovieFileOutput()
+        if captureSession.canAddOutput(movieOutput) {
+            captureSession.addOutput(movieOutput)
+        } else {
+            DispatchQueue.main.async {
+                self.error = "Cannot add movie output"
+                self.isReady = false
+            }
+            captureSession.commitConfiguration()
+            isConfiguring = false
+            return
+        }
+
+        captureSession.commitConfiguration()
+        isConfiguring = false
+
+        DispatchQueue.main.async {
+            self.error = nil
+            self.isReady = true
+        }
+    }
+
+    private func startRunning() {
+        if !captureSession.isRunning {
+            captureSession.startRunning()
+        }
+        DispatchQueue.main.async {
+            self.isSessionRunning = self.captureSession.isRunning
+        }
+    }
+
+    func stopSession() {
+        sessionQueue.async { [weak self] in
+            guard let self = self else { return }
+            if self.captureSession.isRunning {
+                self.captureSession.stopRunning()
+            }
+            DispatchQueue.main.async {
+                self.isSessionRunning = false
+            }
+        }
+    }
+
+    func switchCamera(to camera: AVCaptureDevice) {
+        DispatchQueue.main.async {
+            self.selectedCamera = camera
+            self.isReady = false
+        }
+
+        sessionQueue.async { [weak self] in
+            guard let self = self else { return }
+
+            let wasRunning = self.captureSession.isRunning
+            if wasRunning {
+                self.captureSession.stopRunning()
+            }
+
+            self.configureSession()
+
+            if wasRunning {
+                self.startRunning()
+            }
+        }
+    }
+
+    func startRecording() {
+        guard !isRecording else { return }
+        isRecording = true
+
+        sessionQueue.async { [weak self] in
+            guard let self = self else { return }
+
+            guard self.captureSession.isRunning else {
+                DispatchQueue.main.async {
+                    self.isRecording = false
+                    self.error = "Camera session not running"
+                }
+                return
+            }
+
+            guard self.movieOutput.connection(with: .video) != nil else {
+                DispatchQueue.main.async {
+                    self.isRecording = false
+                    self.error = "Video connection not available"
+                }
+                return
+            }
+
+            let tempDir = FileManager.default.temporaryDirectory
+            let fileName = "QuickCam_\(Date().timeIntervalSince1970).mov"
+            let fileURL = tempDir.appendingPathComponent(fileName)
+
+            try? FileManager.default.removeItem(at: fileURL)
+
+            self.movieOutput.startRecording(to: fileURL, recordingDelegate: self)
+        }
+    }
+
+    func stopRecording() {
+        guard isRecording else { return }
+        sessionQueue.async { [weak self] in
+            self?.movieOutput.stopRecording()
+        }
+    }
+}
+
+extension CameraService: AVCaptureFileOutputRecordingDelegate {
+    func fileOutput(_ output: AVCaptureFileOutput, didFinishRecordingTo outputFileURL: URL, from connections: [AVCaptureConnection], error: Error?) {
+        DispatchQueue.main.async {
+            self.isRecording = false
+            if let error = error {
+                self.error = error.localizedDescription
+            } else {
+                self.recordedVideoURL = outputFileURL
+            }
+        }
+    }
+}

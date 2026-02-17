@@ -128,7 +128,6 @@ struct PreviewView: View {
         }
         .onAppear {
             player = AVPlayer(url: videoURL)
-            // Loop playback
             NotificationCenter.default.addObserver(
                 forName: .AVPlayerItemDidPlayToEndTime,
                 object: player?.currentItem,
@@ -142,56 +141,5 @@ struct PreviewView: View {
             player?.pause()
             player = nil
         }
-    }
-}
-
-// Custom video player view using AVPlayerView directly
-// This avoids the _AVKit_SwiftUI metadata crash
-struct VideoPlayerView: NSViewRepresentable {
-    let player: AVPlayer
-
-    func makeNSView(context: Context) -> AVPlayerView {
-        let playerView = AVPlayerView()
-        playerView.player = player
-        playerView.controlsStyle = .inline
-        playerView.showsFullScreenToggleButton = false
-        return playerView
-    }
-
-    func updateNSView(_ nsView: AVPlayerView, context: Context) {
-        // Player is already set, no need to update
-    }
-}
-
-// Cropped video player that shows center 9:16 crop of horizontal video
-struct CroppedVideoPlayerView: NSViewRepresentable {
-    let player: AVPlayer
-
-    func makeNSView(context: Context) -> NSView {
-        let containerView = NSView()
-        containerView.wantsLayer = true
-        containerView.layer?.masksToBounds = true
-        containerView.layer?.backgroundColor = NSColor.black.cgColor
-
-        let playerLayer = AVPlayerLayer(player: player)
-        playerLayer.videoGravity = .resizeAspectFill  // Fill and crop
-        containerView.layer?.addSublayer(playerLayer)
-
-        // Store reference to update frame on layout
-        context.coordinator.playerLayer = playerLayer
-
-        return containerView
-    }
-
-    func updateNSView(_ nsView: NSView, context: Context) {
-        context.coordinator.playerLayer?.frame = nsView.bounds
-    }
-
-    func makeCoordinator() -> Coordinator {
-        Coordinator()
-    }
-
-    class Coordinator {
-        var playerLayer: AVPlayerLayer?
     }
 }
