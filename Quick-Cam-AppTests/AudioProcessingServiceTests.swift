@@ -165,6 +165,94 @@ final class AudioProcessingServiceTests: XCTestCase {
                              "Tone energy should be >80% preserved (got \(preservation * 100)%)")
     }
 
+    // MARK: - NormalizeStep Tests
+
+    func testNormalizeStepReturnsNewFile() async throws {
+        let step = NormalizeStep()
+        let outputURL = try await step.process(inputURL: testAudioURL)
+
+        XCTAssertNotEqual(outputURL, testAudioURL,
+                          "Output URL should differ from input")
+        XCTAssertTrue(FileManager.default.fileExists(atPath: outputURL.path),
+                       "Output file should exist on disk")
+        addTeardownBlock { try? FileManager.default.removeItem(at: outputURL) }
+    }
+
+    func testNormalizeStepOutputIsValidAudio() async throws {
+        let quietURL = createSineWAVFile(amplitude: 0.05, frequency: 440, durationSeconds: 1.0)
+        addTeardownBlock { try? FileManager.default.removeItem(at: quietURL) }
+
+        let step = NormalizeStep()
+        let outputURL = try await step.process(inputURL: quietURL)
+        addTeardownBlock { try? FileManager.default.removeItem(at: outputURL) }
+
+        let inputFile = try AVAudioFile(forReading: quietURL)
+        let outputFile = try AVAudioFile(forReading: outputURL)
+
+        XCTAssertEqual(outputFile.processingFormat.sampleRate,
+                       inputFile.processingFormat.sampleRate,
+                       "Sample rate should match")
+        XCTAssertEqual(outputFile.processingFormat.channelCount,
+                       inputFile.processingFormat.channelCount,
+                       "Channel count should match")
+    }
+
+    func testNormalizeStepPreservesAudioDuration() async throws {
+        let quietURL = createSineWAVFile(amplitude: 0.05, frequency: 440, durationSeconds: 1.0)
+        addTeardownBlock { try? FileManager.default.removeItem(at: quietURL) }
+
+        let step = NormalizeStep()
+        let outputURL = try await step.process(inputURL: quietURL)
+        addTeardownBlock { try? FileManager.default.removeItem(at: outputURL) }
+
+        let inputFile = try AVAudioFile(forReading: quietURL)
+        let outputFile = try AVAudioFile(forReading: outputURL)
+
+        XCTAssertEqual(outputFile.length, inputFile.length,
+                       "Frame count should match exactly")
+    }
+
+    func testNormalizeStepIncreasesQuietAudio() async throws {
+        let quietURL = createSineWAVFile(amplitude: 0.05, frequency: 440, durationSeconds: 1.0)
+        addTeardownBlock { try? FileManager.default.removeItem(at: quietURL) }
+
+        let step = NormalizeStep()
+        let outputURL = try await step.process(inputURL: quietURL)
+        addTeardownBlock { try? FileManager.default.removeItem(at: outputURL) }
+
+        let inputRMS = try rmsOfFile(url: quietURL)
+        let outputRMS = try rmsOfFile(url: outputURL)
+
+        XCTAssertGreaterThan(outputRMS, inputRMS,
+                             "Output RMS (\(outputRMS)) should be greater than input RMS (\(inputRMS))")
+    }
+
+    func testNormalizeStepDoesNotClip() async throws {
+        let quietURL = createSineWAVFile(amplitude: 0.05, frequency: 440, durationSeconds: 1.0)
+        addTeardownBlock { try? FileManager.default.removeItem(at: quietURL) }
+
+        let step = NormalizeStep()
+        let outputURL = try await step.process(inputURL: quietURL)
+        addTeardownBlock { try? FileManager.default.removeItem(at: outputURL) }
+
+        let peak = try peakOfFile(url: outputURL)
+        XCTAssertLessThanOrEqual(peak, 1.0,
+                                  "All samples should be within [-1.0, 1.0], peak was \(peak)")
+    }
+
+    func testNormalizeStepLimitsLoudAudio() async throws {
+        let loudURL = createSineWAVFile(amplitude: 0.95, frequency: 440, durationSeconds: 1.0)
+        addTeardownBlock { try? FileManager.default.removeItem(at: loudURL) }
+
+        let step = NormalizeStep()
+        let outputURL = try await step.process(inputURL: loudURL)
+        addTeardownBlock { try? FileManager.default.removeItem(at: outputURL) }
+
+        let peak = try peakOfFile(url: outputURL)
+        XCTAssertLessThanOrEqual(peak, 1.0,
+                                  "Peak should not exceed 1.0 after normalization, got \(peak)")
+    }
+
     // MARK: - Helpers
 
     private func createTestWAVFile() -> URL {
@@ -256,6 +344,47 @@ final class AudioProcessingServiceTests: XCTestCase {
         let file = try! AVAudioFile(forWriting: url, settings: format.settings)
         try! file.write(from: buffer)
         return url
+    }
+
+    private func createSineWAVFile(amplitude: Float, frequency: Double, durationSeconds: Double) -> URL {
+        let url = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension("wav")
+
+        let sampleRate: Double = 44100
+        let frameCount = AVAudioFrameCount(sampleRate * durationSeconds)
+        let format = AVAudioFormat(standardFormatWithSampleRate: sampleRate, channels: 1)!
+        let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frameCount)!
+        buffer.frameLength = frameCount
+
+        if let channelData = buffer.floatChannelData {
+            for i in 0..<Int(frameCount) {
+                channelData[0][i] = amplitude * sin(Float(2.0 * Double.pi * frequency * Double(i) / sampleRate))
+            }
+        }
+
+        let file = try! AVAudioFile(forWriting: url, settings: format.settings)
+        try! file.write(from: buffer)
+        return url
+    }
+
+    private func peakOfFile(url: URL) throws -> Float {
+        let file = try AVAudioFile(forReading: url)
+        let format = file.processingFormat
+        let frameCount = AVAudioFrameCount(file.length)
+        guard let buffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: frameCount) else {
+            XCTFail("Could not create buffer")
+            return 0
+        }
+        try file.read(into: buffer)
+
+        guard let channelData = buffer.floatChannelData else { return 0 }
+        var peak: Float = 0
+        for i in 0..<Int(buffer.frameLength) {
+            let absSample = abs(channelData[0][i])
+            if absSample > peak { peak = absSample }
+        }
+        return peak
     }
 
     private func rmsOfFile(url: URL, skipSamples: Int = 0) throws -> Float {

@@ -271,8 +271,70 @@ class DenoiseStep: AudioProcessingStep {
 class NormalizeStep: AudioProcessingStep {
     let name = "Normalize"
 
+    private let targetRMS: Float = 0.15       // ~-16 LUFS approximation
+    private let ceilingLevel: Float = 0.99     // limiter ceiling, prevents digital clipping
+    private let maxGain: Float = 40.0          // safety cap for near-silent inputs
+
     func process(inputURL: URL) async throws -> URL {
-        // Placeholder: returns input unchanged (to be implemented in QC-010)
-        return inputURL
+        let inputFile = try AVAudioFile(forReading: inputURL)
+        let format = inputFile.processingFormat
+        let totalFrames = AVAudioFrameCount(inputFile.length)
+
+        guard let inputBuffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: totalFrames) else {
+            throw NormalizeError.bufferCreationFailed
+        }
+        try inputFile.read(into: inputBuffer)
+
+        guard let channelData = inputBuffer.floatChannelData else {
+            throw NormalizeError.noChannelData
+        }
+
+        let sampleCount = Int(inputBuffer.frameLength)
+        let samplesPtr = channelData[0]
+
+        // Compute current RMS using vDSP
+        var currentRMS: Float = 0
+        vDSP_rmsqv(samplesPtr, 1, &currentRMS, vDSP_Length(sampleCount))
+
+        // Compute gain, capped at maxGain
+        var gain: Float
+        if currentRMS > 0 {
+            gain = min(targetRMS / currentRMS, maxGain)
+        } else {
+            gain = 1.0
+        }
+
+        // Apply gain using vDSP_vsmul
+        var outputSamples = [Float](repeating: 0, count: sampleCount)
+        vDSP_vsmul(samplesPtr, 1, &gain, &outputSamples, 1, vDSP_Length(sampleCount))
+
+        // Limiter: clamp to [-ceilingLevel, ceilingLevel] using vDSP_vclip
+        var low = -ceilingLevel
+        var high = ceilingLevel
+        vDSP_vclip(outputSamples, 1, &low, &high, &outputSamples, 1, vDSP_Length(sampleCount))
+
+        // Write output
+        let outputURL = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString)
+            .appendingPathExtension("wav")
+
+        guard let outputBuffer = AVAudioPCMBuffer(pcmFormat: format, frameCapacity: totalFrames) else {
+            throw NormalizeError.bufferCreationFailed
+        }
+        outputBuffer.frameLength = totalFrames
+
+        if let outData = outputBuffer.floatChannelData {
+            memcpy(outData[0], outputSamples, sampleCount * MemoryLayout<Float>.size)
+        }
+
+        let outputFile = try AVAudioFile(forWriting: outputURL, settings: format.settings)
+        try outputFile.write(from: outputBuffer)
+
+        return outputURL
+    }
+
+    enum NormalizeError: Error {
+        case bufferCreationFailed
+        case noChannelData
     }
 }
