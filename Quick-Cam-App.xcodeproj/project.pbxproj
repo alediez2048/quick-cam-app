@@ -26,6 +26,8 @@
 		A2222222000000000000002D /* VideoPlayerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2222222000000000000000D /* VideoPlayerView.swift */; };
 		A2222222000000000000002E /* CroppedVideoPlayerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2222222000000000000000E /* CroppedVideoPlayerView.swift */; };
 		B11111110000000000000002 /* CameraViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B11111110000000000000001 /* CameraViewModelTests.swift */; };
+		C11111110000000000000001 /* AudioProcessingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C11111110000000000000011 /* AudioProcessingService.swift */; };
+		C11111110000000000000002 /* AudioProcessingServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C11111110000000000000012 /* AudioProcessingServiceTests.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -62,6 +64,8 @@
 		A2222222000000000000000E /* CroppedVideoPlayerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CroppedVideoPlayerView.swift; sourceTree = "<group>"; };
 		B11111110000000000000001 /* CameraViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraViewModelTests.swift; sourceTree = "<group>"; };
 		B11111110000000000000003 /* Quick-Cam-AppTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Quick-Cam-AppTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
+		C11111110000000000000011 /* AudioProcessingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioProcessingService.swift; sourceTree = "<group>"; };
+		C11111110000000000000012 /* AudioProcessingServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioProcessingServiceTests.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -104,6 +108,7 @@
 			isa = PBXGroup;
 			children = (
 				B11111110000000000000001 /* CameraViewModelTests.swift */,
+				C11111110000000000000012 /* AudioProcessingServiceTests.swift */,
 			);
 			path = "Quick-Cam-AppTests";
 			sourceTree = "<group>";
@@ -141,6 +146,7 @@
 				A22222220000000000000004 /* ExportService.swift */,
 				A22222220000000000000005 /* TranscriptionService.swift */,
 				A22222220000000000000006 /* RecordingsRepository.swift */,
+				C11111110000000000000011 /* AudioProcessingService.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -275,6 +281,7 @@
 				A2222222000000000000002C /* PreviousVideoPreview.swift in Sources */,
 				A2222222000000000000002D /* VideoPlayerView.swift in Sources */,
 				A2222222000000000000002E /* CroppedVideoPlayerView.swift in Sources */,
+				C11111110000000000000001 /* AudioProcessingService.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -283,6 +290,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				B11111110000000000000002 /* CameraViewModelTests.swift in Sources */,
+				C11111110000000000000002 /* AudioProcessingServiceTests.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
