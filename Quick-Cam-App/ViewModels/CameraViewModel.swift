@@ -17,6 +17,7 @@ class CameraViewModel: ObservableObject {
     @Published var isCountingDown = false
     @Published var countdownValue = 0
     @Published var audioLevel: Float = -160.0
+    @Published var isPaused = false
     @Published var isProcessingAudio = false
 
     let cameraService: any CameraServiceProtocol
@@ -75,6 +76,10 @@ class CameraViewModel: ObservableObject {
             .receive(on: DispatchQueue.main)
             .assign(to: &$isReady)
 
+        service.$isPaused
+            .receive(on: DispatchQueue.main)
+            .assign(to: &$isPaused)
+
         service.$audioLevel
             .receive(on: DispatchQueue.main)
             .assign(to: &$audioLevel)
@@ -109,6 +114,16 @@ class CameraViewModel: ObservableObject {
             return
         }
         cameraService.stopRecording()
+    }
+
+    func pauseRecording() {
+        guard isRecording, !isPaused else { return }
+        cameraService.pauseRecording()
+    }
+
+    func resumeRecording() {
+        guard isRecording, isPaused else { return }
+        cameraService.resumeRecording()
     }
 
     func cancelCountdown() {
