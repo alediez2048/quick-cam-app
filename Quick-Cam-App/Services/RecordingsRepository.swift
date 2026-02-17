@@ -3,7 +3,9 @@ import AppKit
 
 class RecordingsRepository {
     func loadPreviousRecordings() -> [RecordedVideo] {
-        let downloadsURL = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first!
+        guard let downloadsURL = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first else {
+            return []
+        }
 
         do {
             let files = try FileManager.default.contentsOfDirectory(

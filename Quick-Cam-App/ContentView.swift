@@ -39,9 +39,10 @@ struct ContentView: View {
                         transcriptionProgress: cameraViewModel.transcriptionProgress,
                         onSave: { title, enableCaptions in
                             cameraViewModel.exportToDownloads(title: title, enableCaptions: enableCaptions) { success, path in
-                                if success {
-                                    cameraViewModel.discardRecording()
+                                guard success else { return }
+                                DispatchQueue.main.async {
                                     showPreview = false
+                                    cameraViewModel.discardRecording()
                                     cameraViewModel.setupAndStartSession()
                                 }
                             }
