@@ -1,7 +1,26 @@
 import AVFoundation
 import AppKit
 
-class CameraService: NSObject, ObservableObject {
+protocol CameraServiceProtocol: AnyObject {
+    var availableCameras: [AVCaptureDevice] { get }
+    var selectedCamera: AVCaptureDevice? { get }
+    var isSessionRunning: Bool { get }
+    var isAuthorized: Bool { get }
+    var isReady: Bool { get }
+    var isRecording: Bool { get set }
+    var recordedVideoURL: URL? { get set }
+    var error: String? { get set }
+    var session: AVCaptureSession { get }
+
+    func checkAuthorization()
+    func setupAndStartSession()
+    func stopSession()
+    func switchCamera(to camera: AVCaptureDevice)
+    func startRecording()
+    func stopRecording()
+}
+
+class CameraService: NSObject, ObservableObject, CameraServiceProtocol {
     @Published var availableCameras: [AVCaptureDevice] = []
     @Published var selectedCamera: AVCaptureDevice?
     @Published var isSessionRunning = false
