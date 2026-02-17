@@ -36,9 +36,10 @@ struct ContentView: View {
                         videoURL: videoURL,
                         isExporting: cameraViewModel.isExporting,
                         isTranscribing: cameraViewModel.isTranscribing,
+                        isProcessingAudio: cameraViewModel.isProcessingAudio,
                         transcriptionProgress: cameraViewModel.transcriptionProgress,
-                        onSave: { title, enableCaptions in
-                            cameraViewModel.exportToDownloads(title: title, enableCaptions: enableCaptions) { success, path in
+                        onSave: { title, enableCaptions, enhanceAudio in
+                            cameraViewModel.exportToDownloads(title: title, enableCaptions: enableCaptions, enhanceAudio: enhanceAudio) { success, path in
                                 guard success else { return }
                                 DispatchQueue.main.async {
                                     showPreview = false

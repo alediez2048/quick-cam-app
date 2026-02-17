@@ -17,10 +17,12 @@ class CameraViewModel: ObservableObject {
     @Published var isCountingDown = false
     @Published var countdownValue = 0
     @Published var audioLevel: Float = -160.0
+    @Published var isProcessingAudio = false
 
     let cameraService: any CameraServiceProtocol
     private let exportService = ExportService()
     private let transcriptionService = TranscriptionService()
+    private let audioProcessingService = AudioProcessingService()
     private let recordingsRepository = RecordingsRepository()
     private var cancellables = Set<AnyCancellable>()
     private var countdownTimer: Timer?
@@ -133,7 +135,7 @@ class CameraViewModel: ObservableObject {
         }
     }
 
-    func exportToDownloads(title: String, enableCaptions: Bool = false, completion: @escaping (Bool, String?) -> Void) {
+    func exportToDownloads(title: String, enableCaptions: Bool = false, enhanceAudio: Bool = false, completion: @escaping (Bool, String?) -> Void) {
         guard let sourceURL = recordedVideoURL else {
             completion(false, "No video to export")
             return
@@ -155,7 +157,22 @@ class CameraViewModel: ObservableObject {
                 }
             }
 
-            exportService.exportToDownloads(sourceURL: sourceURL, title: title, captions: captions) { [weak self] success, path in
+            var processedAudioURL: URL? = nil
+            if enhanceAudio {
+                await MainActor.run {
+                    self.isProcessingAudio = true
+                }
+                do {
+                    processedAudioURL = try await audioProcessingService.process(inputURL: sourceURL)
+                } catch {
+                    print("Audio processing failed, falling back to original audio: \(error)")
+                }
+                await MainActor.run {
+                    self.isProcessingAudio = false
+                }
+            }
+
+            exportService.exportToDownloads(sourceURL: sourceURL, title: title, captions: captions, processedAudioURL: processedAudioURL) { [weak self] success, path in
                 guard let self = self else { return }
                 self.isExporting = false
                 if success {

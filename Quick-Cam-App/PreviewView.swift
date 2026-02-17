@@ -6,13 +6,15 @@ struct PreviewView: View {
     let videoURL: URL
     let isExporting: Bool
     let isTranscribing: Bool
+    let isProcessingAudio: Bool
     let transcriptionProgress: String
-    let onSave: (String, Bool) -> Void
+    let onSave: (String, Bool, Bool) -> Void
     let onRetake: () -> Void
 
     @State private var player: AVPlayer?
     @State private var videoTitle: String = ""
     @State private var enableCaptions: Bool = false
+    @State private var enhanceAudio: Bool = false
     @FocusState private var isTitleFocused: Bool
 
     var body: some View {
@@ -79,14 +81,34 @@ struct PreviewView: View {
             .padding(.horizontal)
             .padding(.top, 12)
 
+            // Enhance audio toggle
+            HStack {
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Enhance audio")
+                        .foregroundColor(.white)
+                    Text("Remove background noise and normalize volume")
+                        .font(.caption)
+                        .foregroundColor(.gray)
+                }
+                Spacer()
+                Toggle("", isOn: $enhanceAudio)
+                    .toggleStyle(.switch)
+                    .labelsHidden()
+            }
+            .padding()
+            .background(Color.white.opacity(0.1))
+            .cornerRadius(8)
+            .padding(.horizontal)
+            .padding(.top, 8)
+
             Spacer()
 
             // Action buttons
-            if isExporting || isTranscribing {
+            if isExporting || isTranscribing || isProcessingAudio {
                 VStack(spacing: 12) {
                     ProgressView()
                         .scaleEffect(1.2)
-                    Text(isTranscribing ? transcriptionProgress : "Exporting...")
+                    Text(isProcessingAudio ? "Enhancing audio…" : isTranscribing ? transcriptionProgress : "Exporting...")
                         .foregroundColor(.white)
                         .font(.caption)
                 }
@@ -108,7 +130,7 @@ struct PreviewView: View {
                     .buttonStyle(.plain)
 
                     Button(action: {
-                        onSave(videoTitle, enableCaptions)
+                        onSave(videoTitle, enableCaptions, enhanceAudio)
                     }) {
                         VStack(spacing: 8) {
                             Image(systemName: "square.and.arrow.down")
