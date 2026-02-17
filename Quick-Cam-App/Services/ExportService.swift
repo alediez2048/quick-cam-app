@@ -7,6 +7,7 @@ class ExportService {
         sourceURL: URL,
         title: String,
         captions: [TimedCaption],
+        processedAudioURL: URL? = nil,
         completion: @escaping (Bool, String?) -> Void
     ) {
         guard let downloadsURL = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first else {
@@ -61,7 +62,19 @@ class ExportService {
                 let timeRange = CMTimeRange(start: .zero, duration: duration)
                 try compositionVideoTrack.insertTimeRange(timeRange, of: videoTrack, at: .zero)
 
-                if let audioTrack = audioTracks.first {
+                if let processedAudioURL = processedAudioURL {
+                    let processedAsset = AVURLAsset(url: processedAudioURL)
+                    let processedAudioTracks = try await processedAsset.loadTracks(withMediaType: .audio)
+                    if let processedAudioTrack = processedAudioTracks.first,
+                       let compositionAudioTrack = composition.addMutableTrack(
+                        withMediaType: .audio,
+                        preferredTrackID: kCMPersistentTrackID_Invalid
+                       ) {
+                        let processedDuration = try await processedAsset.load(.duration)
+                        let processedTimeRange = CMTimeRange(start: .zero, duration: min(duration, processedDuration))
+                        try compositionAudioTrack.insertTimeRange(processedTimeRange, of: processedAudioTrack, at: .zero)
+                    }
+                } else if let audioTrack = audioTracks.first {
                     if let compositionAudioTrack = composition.addMutableTrack(
                         withMediaType: .audio,
                         preferredTrackID: kCMPersistentTrackID_Invalid
