@@ -1,5 +1,6 @@
 import AVFoundation
 import AppKit
+import Accelerate
 
 protocol CameraServiceProtocol: AnyObject {
     var availableCameras: [AVCaptureDevice] { get }
@@ -18,6 +19,8 @@ protocol CameraServiceProtocol: AnyObject {
     func switchCamera(to camera: AVCaptureDevice)
     func startRecording()
     func stopRecording()
+
+    var audioLevel: Float { get }
 }
 
 class CameraService: NSObject, ObservableObject, CameraServiceProtocol {
@@ -29,12 +32,16 @@ class CameraService: NSObject, ObservableObject, CameraServiceProtocol {
     @Published var isRecording = false
     @Published var recordedVideoURL: URL?
     @Published var error: String?
+    @Published var audioLevel: Float = -160.0
 
     private let captureSession = AVCaptureSession()
     private var movieOutput = AVCaptureMovieFileOutput()
+    private let audioDataOutput = AVCaptureAudioDataOutput()
     private var currentInput: AVCaptureDeviceInput?
     let sessionQueue = DispatchQueue(label: "camera.session.queue")
+    private let audioMeteringQueue = DispatchQueue(label: "camera.audio.metering")
     private var isConfiguring = false
+    private var lastAudioLevelUpdate = Date.distantPast
 
     var session: AVCaptureSession {
         captureSession
@@ -173,6 +180,11 @@ class CameraService: NSObject, ObservableObject, CameraServiceProtocol {
             return
         }
 
+        if captureSession.canAddOutput(audioDataOutput) {
+            captureSession.addOutput(audioDataOutput)
+            audioDataOutput.setSampleBufferDelegate(self, queue: audioMeteringQueue)
+        }
+
         captureSession.commitConfiguration()
         isConfiguring = false
 
@@ -270,10 +282,70 @@ extension CameraService: AVCaptureFileOutputRecordingDelegate {
     func fileOutput(_ output: AVCaptureFileOutput, didFinishRecordingTo outputFileURL: URL, from connections: [AVCaptureConnection], error: Error?) {
         DispatchQueue.main.async {
             self.isRecording = false
+            self.audioLevel = -160.0
             if let error = error {
                 self.error = error.localizedDescription
             } else {
                 self.recordedVideoURL = outputFileURL
+            }
+        }
+    }
+}
+
+extension CameraService: AVCaptureAudioDataOutputSampleBufferDelegate {
+    func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
+        guard isRecording else { return }
+
+        // Throttle updates to ~15-20 per second (~60ms interval)
+        let now = Date()
+        guard now.timeIntervalSince(lastAudioLevelUpdate) >= 0.06 else { return }
+        lastAudioLevelUpdate = now
+
+        guard let blockBuffer = CMSampleBufferGetDataBuffer(sampleBuffer) else { return }
+
+        let length = CMBlockBufferGetDataLength(blockBuffer)
+        var data = Data(count: length)
+        data.withUnsafeMutableBytes { rawBuffer in
+            guard let baseAddress = rawBuffer.baseAddress else { return }
+            CMBlockBufferCopyDataBytes(blockBuffer, atOffset: 0, dataLength: length, destination: baseAddress)
+        }
+
+        let format = CMSampleBufferGetFormatDescription(sampleBuffer)
+        guard let asbd = format.flatMap({ CMAudioFormatDescriptionGetStreamBasicDescription($0)?.pointee }) else { return }
+
+        let sampleCount: Int
+        if asbd.mBitsPerChannel == 16 {
+            sampleCount = length / MemoryLayout<Int16>.size
+            guard sampleCount > 0 else { return }
+            let rms: Float = data.withUnsafeBytes { rawBuffer in
+                let samples = rawBuffer.bindMemory(to: Int16.self)
+                var sumSquares: Float = 0
+                for i in 0..<sampleCount {
+                    let sample = Float(samples[i]) / Float(Int16.max)
+                    sumSquares += sample * sample
+                }
+                return sqrt(sumSquares / Float(sampleCount))
+            }
+            let dbLevel = rms > 0 ? 20 * log10(rms) : -160.0
+            let clamped = min(max(dbLevel, -160.0), 0.0)
+            DispatchQueue.main.async {
+                self.audioLevel = clamped
+            }
+        } else if asbd.mBitsPerChannel == 32 {
+            sampleCount = length / MemoryLayout<Float>.size
+            guard sampleCount > 0 else { return }
+            let rms: Float = data.withUnsafeBytes { rawBuffer in
+                let samples = rawBuffer.bindMemory(to: Float.self)
+                var sumSquares: Float = 0
+                for i in 0..<sampleCount {
+                    sumSquares += samples[i] * samples[i]
+                }
+                return sqrt(sumSquares / Float(sampleCount))
+            }
+            let dbLevel = rms > 0 ? 20 * log10(rms) : -160.0
+            let clamped = min(max(dbLevel, -160.0), 0.0)
+            DispatchQueue.main.async {
+                self.audioLevel = clamped
             }
         }
     }

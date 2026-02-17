@@ -16,6 +16,7 @@ class CameraViewModel: ObservableObject {
     @Published var transcriptionProgress: String = ""
     @Published var isCountingDown = false
     @Published var countdownValue = 0
+    @Published var audioLevel: Float = -160.0
 
     let cameraService: any CameraServiceProtocol
     private let exportService = ExportService()
@@ -71,6 +72,10 @@ class CameraViewModel: ObservableObject {
         service.$isReady
             .receive(on: DispatchQueue.main)
             .assign(to: &$isReady)
+
+        service.$audioLevel
+            .receive(on: DispatchQueue.main)
+            .assign(to: &$audioLevel)
     }
 
     func checkAuthorization() {
