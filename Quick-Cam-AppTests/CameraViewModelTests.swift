@@ -11,6 +11,7 @@ class MockCameraService: CameraServiceProtocol {
     var isRecording = false
     var recordedVideoURL: URL?
     var error: String?
+    var audioLevel: Float = -160.0
 
     var session: AVCaptureSession { AVCaptureSession() }
 
@@ -129,5 +130,18 @@ final class CameraViewModelTests: XCTestCase {
         RunLoop.current.run(until: Date().addingTimeInterval(1.1))
         XCTAssertFalse(sut.isRecording,
                        "isRecording should still be false at countdown 1")
+    }
+
+    // MARK: - Audio Level Tests
+
+    func testAudioLevelDefaultsToSilence() {
+        XCTAssertEqual(sut.audioLevel, -160.0,
+                       "audioLevel should default to -160.0 (silence in dBFS)")
+    }
+
+    func testAudioLevelExposedFromService() {
+        mockService.audioLevel = -20.0
+        XCTAssertEqual(mockService.audioLevel, -20.0,
+                       "Mock service audioLevel should update")
     }
 }

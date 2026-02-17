@@ -90,6 +90,12 @@ struct RecordingControlsView: View {
                     }
                 )
 
+            if cameraViewModel.isRecording {
+                AudioLevelMeterView(audioLevel: cameraViewModel.audioLevel)
+                    .padding(.horizontal)
+                    .padding(.top, 8)
+            }
+
             Spacer()
 
             // Record button
@@ -129,6 +135,41 @@ struct RecordingControlsView: View {
         let seconds = Int(duration) % 60
         let tenths = Int((duration * 10).truncatingRemainder(dividingBy: 10))
         return String(format: "%02d:%02d.%d", minutes, seconds, tenths)
+    }
+}
+
+private struct AudioLevelMeterView: View {
+    let audioLevel: Float
+
+    private var normalizedLevel: CGFloat {
+        // Map dBFS range -60...0 to 0...1
+        let clamped = min(max(CGFloat(audioLevel), -60), 0)
+        return (clamped + 60) / 60
+    }
+
+    private var meterColor: Color {
+        if audioLevel > -3 {
+            return .red
+        } else if audioLevel > -12 {
+            return .yellow
+        } else {
+            return .green
+        }
+    }
+
+    var body: some View {
+        GeometryReader { geometry in
+            ZStack(alignment: .leading) {
+                Capsule()
+                    .fill(Color.white.opacity(0.2))
+
+                Capsule()
+                    .fill(meterColor)
+                    .frame(width: geometry.size.width * normalizedLevel)
+                    .animation(.linear(duration: 0.06), value: normalizedLevel)
+            }
+        }
+        .frame(height: 8)
     }
 }
 
