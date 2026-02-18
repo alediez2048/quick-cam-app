@@ -55,6 +55,7 @@ class AudioProcessingService {
             AVLinearPCMBitDepthKey: 16,
             AVLinearPCMIsFloatKey: false,
             AVLinearPCMIsBigEndianKey: false,
+            AVLinearPCMIsNonInterleaved: false,
             AVSampleRateKey: 44100,
             AVNumberOfChannelsKey: 1
         ]
@@ -67,6 +68,7 @@ class AudioProcessingService {
             AVLinearPCMBitDepthKey: 16,
             AVLinearPCMIsFloatKey: false,
             AVLinearPCMIsBigEndianKey: false,
+            AVLinearPCMIsNonInterleaved: false,
             AVSampleRateKey: 44100,
             AVNumberOfChannelsKey: 1
         ]

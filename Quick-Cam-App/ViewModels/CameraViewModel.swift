@@ -212,7 +212,7 @@ class CameraViewModel: ObservableObject {
                         self.isTranscribing = true
                         self.transcriptionProgress = "Transcribing audio..."
                     }
-                    captions = await transcriptionService.transcribeAudio(from: sourceURL, locale: language.locale)
+                    captions = (try? await transcriptionService.transcribeAudio(from: sourceURL, locale: language.locale)) ?? []
                     await MainActor.run {
                         self.isTranscribing = false
                         self.transcriptionProgress = ""
