@@ -21,6 +21,7 @@ struct PreviewView: View {
     @State private var captions: [TimedCaption] = []
     @State private var deletedWordIndices: Set<Int> = []
     @State private var isLocallyTranscribing: Bool = false
+    @State private var speechAuthDenied: Bool = false
     @FocusState private var isTitleFocused: Bool
     private let transcriptionService = TranscriptionService()
 
@@ -109,7 +110,18 @@ struct PreviewView: View {
                     .padding(.horizontal)
                     .padding(.top, 8)
 
-                    if !selectedLanguage.isAvailable {
+                    if speechAuthDenied {
+                        HStack(spacing: 6) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .foregroundColor(.yellow)
+                                .font(.caption)
+                            Text("Speech recognition not authorized. Grant permission in System Settings > Privacy & Security > Speech Recognition.")
+                                .font(.caption)
+                                .foregroundColor(.yellow)
+                        }
+                        .padding(.horizontal)
+                        .padding(.top, 4)
+                    } else if !selectedLanguage.isAvailable {
                         HStack(spacing: 6) {
                             Image(systemName: "exclamationmark.triangle.fill")
                                 .foregroundColor(.yellow)
@@ -261,7 +273,17 @@ struct PreviewView: View {
 
     private func transcribeVideo() {
         isLocallyTranscribing = true
+        speechAuthDenied = false
         Task {
+            let authorized = await TranscriptionService.requestAuthorizationIfNeeded()
+            guard authorized else {
+                await MainActor.run {
+                    isLocallyTranscribing = false
+                    speechAuthDenied = true
+                    enableCaptions = false
+                }
+                return
+            }
             let result = (try? await transcriptionService.transcribeAudio(
                 from: videoURL,
                 locale: selectedLanguage.locale

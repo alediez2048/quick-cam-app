@@ -13,6 +13,8 @@ protocol CameraServiceProtocol: AnyObject {
     var error: String? { get set }
     var session: AVCaptureSession { get }
 
+    var sessionQueue: DispatchQueue { get }
+
     func checkAuthorization()
     func setupAndStartSession()
     func stopSession()
