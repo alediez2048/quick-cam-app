@@ -33,24 +33,47 @@ class TranscriptionService {
                         return
                     }
 
+                    let segments = result.bestTranscription.segments
+                    let formattedWords = result.bestTranscription.formattedString
+                        .components(separatedBy: .whitespaces)
+                        .filter { !$0.isEmpty }
+
+                    // Map punctuated words from formattedString back to segments by index
+                    var punctuatedTexts: [String] = []
+                    for i in 0..<segments.count {
+                        if i < formattedWords.count {
+                            punctuatedTexts.append(formattedWords[i])
+                        } else {
+                            punctuatedTexts.append(segments[i].substring)
+                        }
+                    }
+
+                    let maxWordsPerCaption = 12
                     var captions: [TimedCaption] = []
                     var currentWords: [String] = []
                     var currentTimedWords: [TimedWord] = []
                     var segmentStart: CMTime?
 
-                    for segment in result.bestTranscription.segments {
+                    for (i, segment) in segments.enumerated() {
+                        let punctuatedText = punctuatedTexts[i]
+
                         if segmentStart == nil {
                             segmentStart = CMTime(seconds: segment.timestamp, preferredTimescale: 600)
                         }
 
-                        currentWords.append(segment.substring)
+                        currentWords.append(punctuatedText)
                         currentTimedWords.append(TimedWord(
-                            text: segment.substring,
+                            text: punctuatedText,
                             startTime: CMTime(seconds: segment.timestamp, preferredTimescale: 600),
                             endTime: CMTime(seconds: segment.timestamp + segment.duration, preferredTimescale: 600)
                         ))
 
-                        if currentWords.count >= 5, let start = segmentStart {
+                        let endsWithSentencePunctuation = punctuatedText.last == "."
+                            || punctuatedText.last == "!"
+                            || punctuatedText.last == "?"
+                        let atMaxLength = currentWords.count >= maxWordsPerCaption
+
+                        if (endsWithSentencePunctuation || atMaxLength), let start = segmentStart {
                             let endTime = CMTime(seconds: segment.timestamp + segment.duration, preferredTimescale: 600)
                             let caption = TimedCaption(
                                 text: currentWords.joined(separator: " "),
@@ -66,7 +89,7 @@ class TranscriptionService {
                     }
 
                     if !currentWords.isEmpty, let start = segmentStart,
-                       let lastSegment = result.bestTranscription.segments.last {
+                       let lastSegment = segments.last {
                         let endTime = CMTime(seconds: lastSegment.timestamp + lastSegment.duration, preferredTimescale: 600)
                         let caption = TimedCaption(
                             text: currentWords.joined(separator: " "),
