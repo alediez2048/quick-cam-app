@@ -23,6 +23,8 @@ protocol CameraServiceProtocol: AnyObject {
     var isPaused: Bool { get set }
     var audioLevel: Float { get }
 
+    var selectedResolution: ResolutionOption { get set }
+
     func pauseRecording()
     func resumeRecording()
 }
@@ -38,6 +40,7 @@ class CameraService: NSObject, ObservableObject, CameraServiceProtocol {
     @Published var error: String?
     @Published var isPaused = false
     @Published var audioLevel: Float = -160.0
+    @Published var selectedResolution: ResolutionOption = .hd1080p
 
     private let captureSession = AVCaptureSession()
     private var movieOutput = AVCaptureMovieFileOutput()
@@ -155,10 +158,32 @@ class CameraService: NSObject, ObservableObject, CameraServiceProtocol {
             return
         }
 
-        if captureSession.canSetSessionPreset(.hd4K3840x2160) {
-            captureSession.sessionPreset = .hd4K3840x2160
-        } else if captureSession.canSetSessionPreset(.hd1920x1080) {
-            captureSession.sessionPreset = .hd1920x1080
+        let fallbackOrder: [ResolutionOption]
+        switch selectedResolution {
+        case .uhd4K:
+            fallbackOrder = [.uhd4K, .hd1080p, .hd720p]
+        case .hd1080p:
+            fallbackOrder = [.hd1080p, .hd720p]
+        case .hd720p:
+            fallbackOrder = [.hd720p]
+        }
+
+        var didSet = false
+        for option in fallbackOrder {
+            if captureSession.canSetSessionPreset(option.sessionPreset) {
+                captureSession.sessionPreset = option.sessionPreset
+                let actualResolution = option
+                if actualResolution != selectedResolution {
+                    DispatchQueue.main.async {
+                        self.selectedResolution = actualResolution
+                    }
+                }
+                didSet = true
+                break
+            }
+        }
+        if !didSet {
+            captureSession.sessionPreset = .high
         }
 
         if let audioDevice = AVCaptureDevice.default(for: .audio) {

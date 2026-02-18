@@ -11,7 +11,7 @@ struct CameraPreviewView: NSViewRepresentable {
     }
 
     func updateNSView(_ nsView: CameraPreviewNSView, context: Context) {
-        // Don't update the session - it's already set
+        nsView.setMirrored(cameraViewModel.isMirrored)
     }
 }
 
@@ -41,6 +41,14 @@ class CameraPreviewNSView: NSView {
 
         layer?.addSublayer(newPreviewLayer)
         previewLayer = newPreviewLayer
+    }
+
+    func setMirrored(_ enabled: Bool) {
+        if enabled {
+            previewLayer?.transform = CATransform3DMakeScale(-1, 1, 1)
+        } else {
+            previewLayer?.transform = CATransform3DIdentity
+        }
     }
 
     override func layout() {

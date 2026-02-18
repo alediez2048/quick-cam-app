@@ -20,6 +20,8 @@ class CameraViewModel: ObservableObject {
     @Published var isPaused = false
     @Published var isProcessingAudio = false
     @Published var selectedAspectRatio: AspectRatioOption = .vertical
+    @Published var selectedResolution: ResolutionOption
+    @Published var isMirrored: Bool
 
     let cameraService: any CameraServiceProtocol
     private let exportService = ExportService()
@@ -38,10 +40,33 @@ class CameraViewModel: ObservableObject {
     }
 
     init(cameraService: any CameraServiceProtocol) {
+        let savedRawValue = UserDefaults.standard.string(forKey: "selectedResolution") ?? ResolutionOption.hd1080p.rawValue
+        let savedResolution = ResolutionOption(rawValue: savedRawValue) ?? .hd1080p
+        self.selectedResolution = savedResolution
+        self.isMirrored = UserDefaults.standard.bool(forKey: "isMirrored")
         self.cameraService = cameraService
+        cameraService.selectedResolution = savedResolution
+
         if let observableService = cameraService as? CameraService {
             bindCameraService(observableService)
         }
+
+        $selectedResolution
+            .dropFirst()
+            .sink { [weak self] resolution in
+                guard let self = self else { return }
+                UserDefaults.standard.set(resolution.rawValue, forKey: "selectedResolution")
+                self.cameraService.selectedResolution = resolution
+                self.cameraService.setupAndStartSession()
+            }
+            .store(in: &cancellables)
+
+        $isMirrored
+            .dropFirst()
+            .sink { mirrored in
+                UserDefaults.standard.set(mirrored, forKey: "isMirrored")
+            }
+            .store(in: &cancellables)
     }
 
     private func bindCameraService(_ service: CameraService) {
@@ -84,6 +109,15 @@ class CameraViewModel: ObservableObject {
         service.$audioLevel
             .receive(on: DispatchQueue.main)
             .assign(to: &$audioLevel)
+
+        service.$selectedResolution
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] resolution in
+                guard let self = self, self.selectedResolution != resolution else { return }
+                self.selectedResolution = resolution
+                UserDefaults.standard.set(resolution.rawValue, forKey: "selectedResolution")
+            }
+            .store(in: &cancellables)
     }
 
     func checkAuthorization() {

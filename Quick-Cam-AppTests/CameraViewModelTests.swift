@@ -13,6 +13,7 @@ class MockCameraService: CameraServiceProtocol {
     var error: String?
     var isPaused = false
     var audioLevel: Float = -160.0
+    var selectedResolution: ResolutionOption = .hd1080p
 
     var session: AVCaptureSession { AVCaptureSession() }
 

@@ -36,6 +36,24 @@ struct RecordingControlsView: View {
                 .frame(maxWidth: 100)
                 .disabled(cameraViewModel.isRecording || cameraViewModel.isCountingDown)
 
+                Picker("Resolution", selection: $cameraViewModel.selectedResolution) {
+                    ForEach(ResolutionOption.allCases) { option in
+                        Text(option.label).tag(option)
+                    }
+                }
+                .pickerStyle(.menu)
+                .frame(maxWidth: 100)
+                .disabled(cameraViewModel.isRecording || cameraViewModel.isCountingDown)
+
+                Button(action: {
+                    cameraViewModel.isMirrored.toggle()
+                }) {
+                    Image(systemName: "arrow.left.and.right.righttriangle.left.righttriangle.right")
+                        .foregroundColor(cameraViewModel.isMirrored ? .accentColor : .secondary)
+                }
+                .buttonStyle(.plain)
+                .help("Mirror preview")
+
                 Spacer()
 
                 if cameraViewModel.isRecording {
