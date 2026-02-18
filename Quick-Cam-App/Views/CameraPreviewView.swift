@@ -6,7 +6,7 @@ struct CameraPreviewView: NSViewRepresentable {
 
     func makeNSView(context: Context) -> CameraPreviewNSView {
         let view = CameraPreviewNSView()
-        view.setSession(cameraViewModel.session)
+        view.setSession(cameraViewModel.session, sessionQueue: cameraViewModel.cameraService.sessionQueue)
         return view
     }
 
@@ -31,16 +31,23 @@ class CameraPreviewNSView: NSView {
         layer?.backgroundColor = NSColor.black.cgColor
     }
 
-    func setSession(_ session: AVCaptureSession) {
+    func setSession(_ session: AVCaptureSession, sessionQueue: DispatchQueue) {
         guard !hasSetupLayer else { return }
         hasSetupLayer = true
 
-        let newPreviewLayer = AVCaptureVideoPreviewLayer(session: session)
+        // Create layer without a session to avoid mutating AVCaptureSession
+        // on the main thread while startRunning() runs on the session queue.
+        let newPreviewLayer = AVCaptureVideoPreviewLayer()
         newPreviewLayer.videoGravity = .resizeAspectFill
         newPreviewLayer.frame = bounds
 
         layer?.addSublayer(newPreviewLayer)
         previewLayer = newPreviewLayer
+
+        // Set the session on the session queue to serialize with startRunning()
+        sessionQueue.async {
+            newPreviewLayer.session = session
+        }
     }
 
     func setMirrored(_ enabled: Bool) {
