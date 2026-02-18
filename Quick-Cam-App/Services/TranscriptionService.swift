@@ -36,6 +36,7 @@ class TranscriptionService {
 
                     var captions: [TimedCaption] = []
                     var currentWords: [String] = []
+                    var currentTimedWords: [TimedWord] = []
                     var segmentStart: CMTime?
 
                     for segment in result.bestTranscription.segments {
@@ -44,16 +45,23 @@ class TranscriptionService {
                         }
 
                         currentWords.append(segment.substring)
+                        currentTimedWords.append(TimedWord(
+                            text: segment.substring,
+                            startTime: CMTime(seconds: segment.timestamp, preferredTimescale: 600),
+                            endTime: CMTime(seconds: segment.timestamp + segment.duration, preferredTimescale: 600)
+                        ))
 
                         if currentWords.count >= 5, let start = segmentStart {
                             let endTime = CMTime(seconds: segment.timestamp + segment.duration, preferredTimescale: 600)
                             let caption = TimedCaption(
                                 text: currentWords.joined(separator: " "),
                                 startTime: start,
-                                endTime: endTime
+                                endTime: endTime,
+                                words: currentTimedWords
                             )
                             captions.append(caption)
                             currentWords = []
+                            currentTimedWords = []
                             segmentStart = nil
                         }
                     }
@@ -64,7 +72,8 @@ class TranscriptionService {
                         let caption = TimedCaption(
                             text: currentWords.joined(separator: " "),
                             startTime: start,
-                            endTime: endTime
+                            endTime: endTime,
+                            words: currentTimedWords
                         )
                         captions.append(caption)
                     }
