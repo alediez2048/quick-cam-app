@@ -7,6 +7,15 @@ enum CaptionAnimationType: String, CaseIterable, Identifiable {
     case boxed
 
     var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .karaoke: return "Karaoke"
+        case .popup: return "Pop-up"
+        case .classic: return "Classic"
+        case .boxed: return "Boxed"
+        }
+    }
 }
 
 enum CaptionPosition: String, CaseIterable, Identifiable {
@@ -15,17 +24,25 @@ enum CaptionPosition: String, CaseIterable, Identifiable {
     case bottom
 
     var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .top: return "Top"
+        case .center: return "Center"
+        case .bottom: return "Bottom"
+        }
+    }
 }
 
 struct CaptionStyle: Equatable {
-    let styleName: String
-    let fontName: String
-    let fontSize: CGFloat
-    let textColor: NSColor
-    let highlightColor: NSColor
-    let backgroundColor: NSColor
-    let position: CaptionPosition
-    let animationType: CaptionAnimationType
+    var styleName: String
+    var fontName: String
+    var fontSize: CGFloat
+    var textColor: NSColor
+    var highlightColor: NSColor
+    var backgroundColor: NSColor
+    var position: CaptionPosition
+    var animationType: CaptionAnimationType
 
     static func == (lhs: CaptionStyle, rhs: CaptionStyle) -> Bool {
         lhs.styleName == rhs.styleName

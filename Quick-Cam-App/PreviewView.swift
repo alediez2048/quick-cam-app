@@ -16,6 +16,7 @@ struct PreviewView: View {
     @State private var videoTitle: String = ""
     @State private var enableCaptions: Bool = false
     @State private var enhanceAudio: Bool = false
+    @State private var selectedCaptionStyle: CaptionStyle = .classic
     @FocusState private var isTitleFocused: Bool
 
     var body: some View {
@@ -50,57 +51,64 @@ struct PreviewView: View {
                     .padding(.horizontal)
             }
 
-            // Title input
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Video Title (optional)")
-                    .font(.caption)
-                    .foregroundColor(.gray)
-                TextField("Enter a title...", text: $videoTitle)
-                    .textFieldStyle(.roundedBorder)
-                    .focused($isTitleFocused)
-            }
-            .padding(.horizontal)
-            .padding(.top, 16)
-
-            // Auto-captions toggle
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Auto-generate captions")
-                        .foregroundColor(.white)
-                    Text("Transcribe speech and add subtitles")
+            ScrollView {
+                // Title input
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("Video Title (optional)")
                         .font(.caption)
                         .foregroundColor(.gray)
+                    TextField("Enter a title...", text: $videoTitle)
+                        .textFieldStyle(.roundedBorder)
+                        .focused($isTitleFocused)
                 }
-                Spacer()
-                Toggle("", isOn: $enableCaptions)
-                    .toggleStyle(.switch)
-                    .labelsHidden()
-            }
-            .padding()
-            .background(Color.white.opacity(0.1))
-            .cornerRadius(8)
-            .padding(.horizontal)
-            .padding(.top, 12)
+                .padding(.horizontal)
+                .padding(.top, 16)
 
-            // Enhance audio toggle
-            HStack {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("Enhance audio")
-                        .foregroundColor(.white)
-                    Text("Remove background noise and normalize volume")
-                        .font(.caption)
-                        .foregroundColor(.gray)
+                // Auto-captions toggle
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Auto-generate captions")
+                            .foregroundColor(.white)
+                        Text("Transcribe speech and add subtitles")
+                            .font(.caption)
+                            .foregroundColor(.gray)
+                    }
+                    Spacer()
+                    Toggle("", isOn: $enableCaptions)
+                        .toggleStyle(.switch)
+                        .labelsHidden()
                 }
-                Spacer()
-                Toggle("", isOn: $enhanceAudio)
-                    .toggleStyle(.switch)
-                    .labelsHidden()
+                .padding()
+                .background(Color.white.opacity(0.1))
+                .cornerRadius(8)
+                .padding(.horizontal)
+                .padding(.top, 12)
+
+                // Caption style picker
+                if enableCaptions {
+                    CaptionStylePickerView(selectedStyle: $selectedCaptionStyle)
+                }
+
+                // Enhance audio toggle
+                HStack {
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("Enhance audio")
+                            .foregroundColor(.white)
+                        Text("Remove background noise and normalize volume")
+                            .font(.caption)
+                            .foregroundColor(.gray)
+                    }
+                    Spacer()
+                    Toggle("", isOn: $enhanceAudio)
+                        .toggleStyle(.switch)
+                        .labelsHidden()
+                }
+                .padding()
+                .background(Color.white.opacity(0.1))
+                .cornerRadius(8)
+                .padding(.horizontal)
+                .padding(.top, 8)
             }
-            .padding()
-            .background(Color.white.opacity(0.1))
-            .cornerRadius(8)
-            .padding(.horizontal)
-            .padding(.top, 8)
 
             Spacer()
 
@@ -131,7 +139,7 @@ struct PreviewView: View {
                     .buttonStyle(.plain)
 
                     Button(action: {
-                        onSave(videoTitle, enableCaptions, enhanceAudio, .classic)
+                        onSave(videoTitle, enableCaptions, enhanceAudio, selectedCaptionStyle)
                     }) {
                         VStack(spacing: 8) {
                             Image(systemName: "square.and.arrow.down")
