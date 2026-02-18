@@ -8,6 +8,8 @@ struct TranscriptEditorView: View {
     @Binding var deletedWordIndices: Set<Int>
 
     @State private var observer = TranscriptPlaybackObserver()
+    @State private var undoStack: [Set<Int>] = []
+    @State private var redoStack: [Set<Int>] = []
 
     private var allWords: [TimedWord] {
         captions.flatMap { $0.words }
@@ -20,9 +22,34 @@ struct TranscriptEditorView: View {
                     .font(.caption)
                     .foregroundColor(.gray)
                 Spacer()
+
+                Button {
+                    undo()
+                } label: {
+                    Image(systemName: "arrow.uturn.backward")
+                        .font(.caption)
+                }
+                .buttonStyle(.plain)
+                .disabled(undoStack.isEmpty)
+                .foregroundColor(undoStack.isEmpty ? .gray.opacity(0.5) : .accentColor)
+                .keyboardShortcut("z", modifiers: .command)
+                .help("Undo (⌘Z)")
+
+                Button {
+                    redo()
+                } label: {
+                    Image(systemName: "arrow.uturn.forward")
+                        .font(.caption)
+                }
+                .buttonStyle(.plain)
+                .disabled(redoStack.isEmpty)
+                .foregroundColor(redoStack.isEmpty ? .gray.opacity(0.5) : .accentColor)
+                .keyboardShortcut("z", modifiers: [.command, .shift])
+                .help("Redo (⇧⌘Z)")
+
                 if !deletedWordIndices.isEmpty {
                     Button {
-                        deletedWordIndices.removeAll()
+                        recordAndApply([])
                     } label: {
                         Text("Restore All (\(deletedWordIndices.count))")
                             .font(.caption)
@@ -71,11 +98,15 @@ struct TranscriptEditorView: View {
                                 .contextMenu {
                                     if isDeleted {
                                         Button("Restore") {
-                                            deletedWordIndices.remove(index)
+                                            var newSet = deletedWordIndices
+                                            newSet.remove(index)
+                                            recordAndApply(newSet)
                                         }
                                     } else {
                                         Button("Delete") {
-                                            deletedWordIndices.insert(index)
+                                            var newSet = deletedWordIndices
+                                            newSet.insert(index)
+                                            recordAndApply(newSet)
                                         }
                                     }
                                 }
@@ -105,5 +136,23 @@ struct TranscriptEditorView: View {
         .onDisappear {
             observer.detach(from: player)
         }
+    }
+
+    private func recordAndApply(_ newValue: Set<Int>) {
+        undoStack.append(deletedWordIndices)
+        redoStack.removeAll()
+        deletedWordIndices = newValue
+    }
+
+    private func undo() {
+        guard let previous = undoStack.popLast() else { return }
+        redoStack.append(deletedWordIndices)
+        deletedWordIndices = previous
+    }
+
+    private func redo() {
+        guard let next = redoStack.popLast() else { return }
+        undoStack.append(deletedWordIndices)
+        deletedWordIndices = next
     }
 }
