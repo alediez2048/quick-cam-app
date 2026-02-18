@@ -4,6 +4,7 @@ import AVFoundation
 
 struct PreviewView: View {
     let videoURL: URL
+    let aspectRatio: AspectRatioOption
     let isExporting: Bool
     let isTranscribing: Bool
     let isProcessingAudio: Bool
@@ -31,7 +32,7 @@ struct PreviewView: View {
             // Video player - cropped to 9:16 vertical preview
             if let player = player {
                 CroppedVideoPlayerView(player: player)
-                    .aspectRatio(9/16, contentMode: .fit)
+                    .aspectRatio(aspectRatio.ratio, contentMode: .fit)
                     .cornerRadius(12)
                     .padding(.horizontal)
                     .onAppear {
@@ -40,7 +41,7 @@ struct PreviewView: View {
             } else {
                 Rectangle()
                     .fill(Color.gray.opacity(0.3))
-                    .aspectRatio(9/16, contentMode: .fit)
+                    .aspectRatio(aspectRatio.ratio, contentMode: .fit)
                     .cornerRadius(12)
                     .overlay(
                         ProgressView()

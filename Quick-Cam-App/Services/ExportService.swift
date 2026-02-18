@@ -8,6 +8,7 @@ class ExportService {
         title: String,
         captions: [TimedCaption],
         processedAudioURL: URL? = nil,
+        aspectRatio: AspectRatioOption = .vertical,
         completion: @escaping (Bool, String?) -> Void
     ) {
         guard let downloadsURL = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first else {
@@ -85,16 +86,20 @@ class ExportService {
 
                 let sourceWidth = naturalSize.width
                 let sourceHeight = naturalSize.height
-                let outputWidth: CGFloat = 2160
-                let outputHeight: CGFloat = 3840
+                let outputWidth = aspectRatio.outputSize.width
+                let outputHeight = aspectRatio.outputSize.height
 
-                let scale = outputHeight / sourceHeight
+                let scaleX = outputWidth / sourceWidth
+                let scaleY = outputHeight / sourceHeight
+                let scale = max(scaleX, scaleY)
                 let scaledWidth = sourceWidth * scale
+                let scaledHeight = sourceHeight * scale
                 let translateX = -(scaledWidth - outputWidth) / 2.0
+                let translateY = -(scaledHeight - outputHeight) / 2.0
 
                 var transform = CGAffineTransform.identity
                 transform = transform.scaledBy(x: scale, y: scale)
-                transform = transform.translatedBy(x: translateX / scale, y: 0)
+                transform = transform.translatedBy(x: translateX / scale, y: translateY / scale)
 
                 let videoComposition = AVMutableVideoComposition()
                 videoComposition.renderSize = CGSize(width: outputWidth, height: outputHeight)

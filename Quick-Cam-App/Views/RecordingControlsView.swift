@@ -27,6 +27,15 @@ struct RecordingControlsView: View {
                     .disabled(cameraViewModel.isRecording || cameraViewModel.isCountingDown)
                 }
 
+                Picker("Ratio", selection: $cameraViewModel.selectedAspectRatio) {
+                    ForEach(AspectRatioOption.allCases) { option in
+                        Text(option.label).tag(option)
+                    }
+                }
+                .pickerStyle(.menu)
+                .frame(maxWidth: 100)
+                .disabled(cameraViewModel.isRecording || cameraViewModel.isCountingDown)
+
                 Spacer()
 
                 if cameraViewModel.isRecording {
@@ -53,7 +62,7 @@ struct RecordingControlsView: View {
 
             // Camera preview
             CameraPreviewView(cameraViewModel: cameraViewModel)
-                .aspectRatio(9/16, contentMode: .fit)
+                .aspectRatio(cameraViewModel.selectedAspectRatio.ratio, contentMode: .fit)
                 .cornerRadius(12)
                 .padding(.horizontal)
                 .overlay(
