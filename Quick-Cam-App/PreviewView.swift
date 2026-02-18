@@ -143,7 +143,7 @@ struct PreviewView: View {
                             .padding(.top, 8)
                         } else if !captions.isEmpty {
                             TranscriptEditorView(
-                                captions: captions,
+                                captions: $captions,
                                 player: player,
                                 deletedWordIndices: $deletedWordIndices
                             )
