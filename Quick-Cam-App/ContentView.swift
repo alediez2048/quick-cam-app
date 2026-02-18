@@ -34,12 +34,13 @@ struct ContentView: View {
                 } else if showPreview, let videoURL = cameraViewModel.recordedVideoURL {
                     PreviewView(
                         videoURL: videoURL,
+                        aspectRatio: cameraViewModel.selectedAspectRatio,
                         isExporting: cameraViewModel.isExporting,
                         isTranscribing: cameraViewModel.isTranscribing,
                         isProcessingAudio: cameraViewModel.isProcessingAudio,
                         transcriptionProgress: cameraViewModel.transcriptionProgress,
                         onSave: { title, enableCaptions, enhanceAudio in
-                            cameraViewModel.exportToDownloads(title: title, enableCaptions: enableCaptions, enhanceAudio: enhanceAudio) { success, path in
+                            cameraViewModel.exportToDownloads(title: title, enableCaptions: enableCaptions, enhanceAudio: enhanceAudio, aspectRatio: cameraViewModel.selectedAspectRatio) { success, path in
                                 guard success else { return }
                                 DispatchQueue.main.async {
                                     showPreview = false

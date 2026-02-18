@@ -19,6 +19,7 @@ class CameraViewModel: ObservableObject {
     @Published var audioLevel: Float = -160.0
     @Published var isPaused = false
     @Published var isProcessingAudio = false
+    @Published var selectedAspectRatio: AspectRatioOption = .vertical
 
     let cameraService: any CameraServiceProtocol
     private let exportService = ExportService()
@@ -150,7 +151,7 @@ class CameraViewModel: ObservableObject {
         }
     }
 
-    func exportToDownloads(title: String, enableCaptions: Bool = false, enhanceAudio: Bool = false, completion: @escaping (Bool, String?) -> Void) {
+    func exportToDownloads(title: String, enableCaptions: Bool = false, enhanceAudio: Bool = false, aspectRatio: AspectRatioOption = .vertical, completion: @escaping (Bool, String?) -> Void) {
         guard let sourceURL = recordedVideoURL else {
             completion(false, "No video to export")
             return
@@ -187,7 +188,7 @@ class CameraViewModel: ObservableObject {
                 }
             }
 
-            exportService.exportToDownloads(sourceURL: sourceURL, title: title, captions: captions, processedAudioURL: processedAudioURL) { [weak self] success, path in
+            exportService.exportToDownloads(sourceURL: sourceURL, title: title, captions: captions, processedAudioURL: processedAudioURL, aspectRatio: aspectRatio) { [weak self] success, path in
                 guard let self = self else { return }
                 self.isExporting = false
                 if success {
