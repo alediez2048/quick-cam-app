@@ -9,7 +9,7 @@ struct PreviewView: View {
     let isTranscribing: Bool
     let isProcessingAudio: Bool
     let transcriptionProgress: String
-    let onSave: (String, Bool, Bool, CaptionStyle, TranscriptionLanguage) -> Void
+    let onSave: (String, Bool, Bool, CaptionStyle, TranscriptionLanguage, [TimedCaption]) -> Void
     let onRetake: () -> Void
 
     @State private var player: AVPlayer?
@@ -18,7 +18,10 @@ struct PreviewView: View {
     @State private var enhanceAudio: Bool = false
     @State private var selectedCaptionStyle: CaptionStyle = .classic
     @AppStorage("transcriptionLanguage") private var selectedLanguage: TranscriptionLanguage = .english
+    @State private var captions: [TimedCaption] = []
+    @State private var isLocallyTranscribing: Bool = false
     @FocusState private var isTitleFocused: Bool
+    private let transcriptionService = TranscriptionService()
 
     var body: some View {
         VStack(spacing: 0) {
@@ -120,6 +123,30 @@ struct PreviewView: View {
 
                     // Caption style picker
                     CaptionStylePickerView(selectedStyle: $selectedCaptionStyle)
+
+                    // Transcript editor
+                    if let player = player {
+                        if isLocallyTranscribing {
+                            HStack {
+                                ProgressView()
+                                    .scaleEffect(0.8)
+                                Text("Transcribing...")
+                                    .font(.caption)
+                                    .foregroundColor(.gray)
+                            }
+                            .padding()
+                            .frame(maxWidth: .infinity)
+                            .background(Color.white.opacity(0.1))
+                            .cornerRadius(8)
+                            .padding(.horizontal)
+                            .padding(.top, 8)
+                        } else if !captions.isEmpty {
+                            TranscriptEditorView(
+                                captions: captions,
+                                player: player
+                            )
+                        }
+                    }
                 }
 
                 // Enhance audio toggle
@@ -172,7 +199,7 @@ struct PreviewView: View {
                     .buttonStyle(.plain)
 
                     Button(action: {
-                        onSave(videoTitle, enableCaptions, enhanceAudio, selectedCaptionStyle, selectedLanguage)
+                        onSave(videoTitle, enableCaptions, enhanceAudio, selectedCaptionStyle, selectedLanguage, captions)
                     }) {
                         VStack(spacing: 8) {
                             Image(systemName: "square.and.arrow.down")
@@ -204,6 +231,31 @@ struct PreviewView: View {
         .onDisappear {
             player?.pause()
             player = nil
+        }
+        .onChange(of: enableCaptions) { _, enabled in
+            if enabled && captions.isEmpty {
+                transcribeVideo()
+            }
+        }
+        .onChange(of: selectedLanguage) { _, _ in
+            if enableCaptions {
+                captions = []
+                transcribeVideo()
+            }
+        }
+    }
+
+    private func transcribeVideo() {
+        isLocallyTranscribing = true
+        Task {
+            let result = await transcriptionService.transcribeAudio(
+                from: videoURL,
+                locale: selectedLanguage.locale
+            )
+            await MainActor.run {
+                captions = result
+                isLocallyTranscribing = false
+            }
         }
     }
 }
