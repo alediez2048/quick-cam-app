@@ -194,7 +194,7 @@ class CameraViewModel: ObservableObject {
         }
     }
 
-    func exportToDownloads(title: String, enableCaptions: Bool = false, enhanceAudio: Bool = false, aspectRatio: AspectRatioOption = .vertical, captionStyle: CaptionStyle = .classic, language: TranscriptionLanguage = .english, completion: @escaping (Bool, String?) -> Void) {
+    func exportToDownloads(title: String, enableCaptions: Bool = false, enhanceAudio: Bool = false, aspectRatio: AspectRatioOption = .vertical, captionStyle: CaptionStyle = .classic, language: TranscriptionLanguage = .english, preTranscribedCaptions: [TimedCaption] = [], completion: @escaping (Bool, String?) -> Void) {
         guard let sourceURL = recordedVideoURL else {
             completion(false, "No video to export")
             return
@@ -205,14 +205,18 @@ class CameraViewModel: ObservableObject {
         Task {
             var captions: [TimedCaption] = []
             if enableCaptions {
-                await MainActor.run {
-                    self.isTranscribing = true
-                    self.transcriptionProgress = "Transcribing audio..."
-                }
-                captions = await transcriptionService.transcribeAudio(from: sourceURL, locale: language.locale)
-                await MainActor.run {
-                    self.isTranscribing = false
-                    self.transcriptionProgress = ""
+                if !preTranscribedCaptions.isEmpty {
+                    captions = preTranscribedCaptions
+                } else {
+                    await MainActor.run {
+                        self.isTranscribing = true
+                        self.transcriptionProgress = "Transcribing audio..."
+                    }
+                    captions = await transcriptionService.transcribeAudio(from: sourceURL, locale: language.locale)
+                    await MainActor.run {
+                        self.isTranscribing = false
+                        self.transcriptionProgress = ""
+                    }
                 }
             }
 
