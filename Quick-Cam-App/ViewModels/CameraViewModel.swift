@@ -240,6 +240,8 @@ class CameraViewModel: ObservableObject {
                 self.isExporting = false
                 if success {
                     self.loadPreviousRecordings()
+                } else {
+                    self.error = path ?? "Export failed"
                 }
                 completion(success, path)
             }

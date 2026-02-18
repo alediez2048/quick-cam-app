@@ -58,6 +58,36 @@ class CameraService: NSObject, ObservableObject, CameraServiceProtocol {
     override init() {
         super.init()
         discoverCameras()
+
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(deviceConnected),
+            name: AVCaptureDevice.wasConnectedNotification,
+            object: nil
+        )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(deviceDisconnected),
+            name: AVCaptureDevice.wasDisconnectedNotification,
+            object: nil
+        )
+    }
+
+    @objc private func deviceConnected(_ notification: Notification) {
+        DispatchQueue.main.async {
+            self.discoverCameras()
+        }
+    }
+
+    @objc private func deviceDisconnected(_ notification: Notification) {
+        let disconnected = notification.object as? AVCaptureDevice
+        DispatchQueue.main.async {
+            self.discoverCameras()
+            if let disconnected, self.selectedCamera?.uniqueID == disconnected.uniqueID {
+                self.selectedCamera = self.availableCameras.first
+                self.setupAndStartSession()
+            }
+        }
     }
 
     func checkAuthorization() {
