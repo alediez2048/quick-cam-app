@@ -9,7 +9,7 @@ struct PreviewView: View {
     let isTranscribing: Bool
     let isProcessingAudio: Bool
     let transcriptionProgress: String
-    let onSave: (String, Bool, Bool, CaptionStyle, TranscriptionLanguage, [TimedCaption]) -> Void
+    let onSave: (String, Bool, Bool, CaptionStyle, TranscriptionLanguage, [TimedCaption], [CMTimeRange]) -> Void
     let onRetake: () -> Void
 
     @State private var player: AVPlayer?
@@ -19,6 +19,7 @@ struct PreviewView: View {
     @State private var selectedCaptionStyle: CaptionStyle = .classic
     @AppStorage("transcriptionLanguage") private var selectedLanguage: TranscriptionLanguage = .english
     @State private var captions: [TimedCaption] = []
+    @State private var deletedWordIndices: Set<Int> = []
     @State private var isLocallyTranscribing: Bool = false
     @FocusState private var isTitleFocused: Bool
     private let transcriptionService = TranscriptionService()
@@ -143,7 +144,8 @@ struct PreviewView: View {
                         } else if !captions.isEmpty {
                             TranscriptEditorView(
                                 captions: captions,
-                                player: player
+                                player: player,
+                                deletedWordIndices: $deletedWordIndices
                             )
                         }
                     }
@@ -199,7 +201,8 @@ struct PreviewView: View {
                     .buttonStyle(.plain)
 
                     Button(action: {
-                        onSave(videoTitle, enableCaptions, enhanceAudio, selectedCaptionStyle, selectedLanguage, captions)
+                        let exclusionRanges = computeExclusionRanges()
+                        onSave(videoTitle, enableCaptions, enhanceAudio, selectedCaptionStyle, selectedLanguage, captions, exclusionRanges)
                     }) {
                         VStack(spacing: 8) {
                             Image(systemName: "square.and.arrow.down")
@@ -240,8 +243,19 @@ struct PreviewView: View {
         .onChange(of: selectedLanguage) { _, _ in
             if enableCaptions {
                 captions = []
+                deletedWordIndices = []
                 transcribeVideo()
             }
+        }
+    }
+
+    private func computeExclusionRanges() -> [CMTimeRange] {
+        guard !deletedWordIndices.isEmpty else { return [] }
+        let allWords = captions.flatMap { $0.words }
+        return deletedWordIndices.compactMap { index -> CMTimeRange? in
+            guard index < allWords.count else { return nil }
+            let word = allWords[index]
+            return CMTimeRange(start: word.startTime, end: word.endTime)
         }
     }
 
