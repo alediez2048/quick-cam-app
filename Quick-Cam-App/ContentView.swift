@@ -39,8 +39,8 @@ struct ContentView: View {
                         isTranscribing: cameraViewModel.isTranscribing,
                         isProcessingAudio: cameraViewModel.isProcessingAudio,
                         transcriptionProgress: cameraViewModel.transcriptionProgress,
-                        onSave: { title, enableCaptions, enhanceAudio in
-                            cameraViewModel.exportToDownloads(title: title, enableCaptions: enableCaptions, enhanceAudio: enhanceAudio, aspectRatio: cameraViewModel.selectedAspectRatio) { success, path in
+                        onSave: { title, enableCaptions, enhanceAudio, captionStyle in
+                            cameraViewModel.exportToDownloads(title: title, enableCaptions: enableCaptions, enhanceAudio: enhanceAudio, aspectRatio: cameraViewModel.selectedAspectRatio, captionStyle: captionStyle) { success, path in
                                 guard success else { return }
                                 DispatchQueue.main.async {
                                     showPreview = false

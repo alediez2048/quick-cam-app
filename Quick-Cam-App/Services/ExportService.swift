@@ -9,6 +9,7 @@ class ExportService {
         captions: [TimedCaption],
         processedAudioURL: URL? = nil,
         aspectRatio: AspectRatioOption = .vertical,
+        captionStyle: CaptionStyle = .classic,
         completion: @escaping (Bool, String?) -> Void
     ) {
         guard let downloadsURL = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first else {
@@ -123,50 +124,15 @@ class ExportService {
                     parentLayer.addSublayer(videoLayer)
 
                     let totalDuration = CMTimeGetSeconds(duration)
-
-                    for caption in captions {
-                        let textLayer = CATextLayer()
-                        textLayer.string = caption.text
-                        textLayer.font = "HelveticaNeue-Bold" as CFTypeRef
-                        textLayer.fontSize = 72
-                        textLayer.foregroundColor = NSColor.white.cgColor
-                        textLayer.backgroundColor = NSColor.black.withAlphaComponent(0.6).cgColor
-                        textLayer.alignmentMode = .center
-                        textLayer.contentsScale = 2.0
-                        textLayer.isWrapped = true
-                        textLayer.truncationMode = .end
-
-                        let padding: CGFloat = 100
-                        let textHeight: CGFloat = 200
-                        let textWidth = outputWidth - (padding * 2)
-                        textLayer.frame = CGRect(
-                            x: padding,
-                            y: padding,
-                            width: textWidth,
-                            height: textHeight
-                        )
-
-                        let startSeconds = CMTimeGetSeconds(caption.startTime)
-                        let endSeconds = CMTimeGetSeconds(caption.endTime)
-
-                        textLayer.opacity = 0
-
-                        let opacityAnimation = CAKeyframeAnimation(keyPath: "opacity")
-                        opacityAnimation.values = [0, 0, 1, 1, 0, 0]
-                        opacityAnimation.keyTimes = [
-                            0,
-                            NSNumber(value: max(0, startSeconds - 0.01) / totalDuration),
-                            NSNumber(value: startSeconds / totalDuration),
-                            NSNumber(value: endSeconds / totalDuration),
-                            NSNumber(value: min(totalDuration, endSeconds + 0.01) / totalDuration),
-                            1
-                        ]
-                        opacityAnimation.duration = totalDuration
-                        opacityAnimation.beginTime = AVCoreAnimationBeginTimeAtZero
-                        opacityAnimation.isRemovedOnCompletion = false
-                        textLayer.add(opacityAnimation, forKey: "opacity")
-
-                        parentLayer.addSublayer(textLayer)
+                    let engine = CaptionStyleEngine()
+                    let captionLayers = engine.buildCaptionLayers(
+                        captions: captions,
+                        style: captionStyle,
+                        videoSize: CGSize(width: outputWidth, height: outputHeight),
+                        totalDuration: totalDuration
+                    )
+                    for layer in captionLayers {
+                        parentLayer.addSublayer(layer)
                     }
 
                     videoComposition.animationTool = AVVideoCompositionCoreAnimationTool(
