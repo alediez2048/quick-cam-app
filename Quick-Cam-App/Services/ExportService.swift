@@ -62,11 +62,17 @@ class ExportService {
                     return
                 }
 
-                let fullTimeRange = CMTimeRange(start: .zero, duration: duration)
                 let includedRanges = Self.computeIncludedRanges(
                     fullDuration: duration,
                     exclusionRanges: exclusionRanges
                 )
+
+                guard !includedRanges.isEmpty else {
+                    await MainActor.run {
+                        completion(false, "No video content remaining after deletions")
+                    }
+                    return
+                }
 
                 // Insert included segments into composition
                 var insertionTime = CMTime.zero
@@ -286,11 +292,12 @@ class ExportService {
                     endTime: adjustTime(word.endTime)
                 )
             }
-            guard !adjustedWords.isEmpty else { continue }
+            guard let firstWord = adjustedWords.first,
+                  let lastWord = adjustedWords.last else { continue }
             let adjustedCaption = TimedCaption(
                 text: adjustedWords.map { $0.text }.joined(separator: " "),
-                startTime: adjustedWords.first!.startTime,
-                endTime: adjustedWords.last!.endTime,
+                startTime: firstWord.startTime,
+                endTime: lastWord.endTime,
                 words: adjustedWords
             )
             result.append(adjustedCaption)
