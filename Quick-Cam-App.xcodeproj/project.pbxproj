@@ -25,6 +25,7 @@
 		A2222222000000000000002C /* PreviousVideoPreview.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2222222000000000000000C /* PreviousVideoPreview.swift */; };
 		A2222222000000000000002D /* VideoPlayerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2222222000000000000000D /* VideoPlayerView.swift */; };
 		A2222222000000000000002E /* CroppedVideoPlayerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2222222000000000000000E /* CroppedVideoPlayerView.swift */; };
+		A2222222000000000000002F /* CaptionStylePickerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2222222000000000000000F /* CaptionStylePickerView.swift */; };
 		B11111110000000000000002 /* CameraViewModelTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = B11111110000000000000001 /* CameraViewModelTests.swift */; };
 		C11111110000000000000001 /* AudioProcessingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = C11111110000000000000011 /* AudioProcessingService.swift */; };
 		C11111110000000000000002 /* AudioProcessingServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C11111110000000000000012 /* AudioProcessingServiceTests.swift */; };
@@ -66,6 +67,7 @@
 		A2222222000000000000000C /* PreviousVideoPreview.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreviousVideoPreview.swift; sourceTree = "<group>"; };
 		A2222222000000000000000D /* VideoPlayerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoPlayerView.swift; sourceTree = "<group>"; };
 		A2222222000000000000000E /* CroppedVideoPlayerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CroppedVideoPlayerView.swift; sourceTree = "<group>"; };
+		A2222222000000000000000F /* CaptionStylePickerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptionStylePickerView.swift; sourceTree = "<group>"; };
 		B11111110000000000000001 /* CameraViewModelTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraViewModelTests.swift; sourceTree = "<group>"; };
 		B11111110000000000000003 /* Quick-Cam-AppTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = "Quick-Cam-AppTests.xctest"; sourceTree = BUILT_PRODUCTS_DIR; };
 		C11111110000000000000011 /* AudioProcessingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioProcessingService.swift; sourceTree = "<group>"; };
@@ -181,6 +183,7 @@
 				A2222222000000000000000C /* PreviousVideoPreview.swift */,
 				A2222222000000000000000D /* VideoPlayerView.swift */,
 				A2222222000000000000000E /* CroppedVideoPlayerView.swift */,
+				A2222222000000000000000F /* CaptionStylePickerView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -293,6 +296,7 @@
 				A2222222000000000000002C /* PreviousVideoPreview.swift in Sources */,
 				A2222222000000000000002D /* VideoPlayerView.swift in Sources */,
 				A2222222000000000000002E /* CroppedVideoPlayerView.swift in Sources */,
+				A2222222000000000000002F /* CaptionStylePickerView.swift in Sources */,
 				C11111110000000000000001 /* AudioProcessingService.swift in Sources */,
 				D11111110000000000000001 /* AspectRatioOption.swift in Sources */,
 				E11111110000000000000001 /* ResolutionOption.swift in Sources */,
