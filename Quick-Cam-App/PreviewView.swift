@@ -262,10 +262,10 @@ struct PreviewView: View {
     private func transcribeVideo() {
         isLocallyTranscribing = true
         Task {
-            let result = await transcriptionService.transcribeAudio(
+            let result = (try? await transcriptionService.transcribeAudio(
                 from: videoURL,
                 locale: selectedLanguage.locale
-            )
+            )) ?? []
             await MainActor.run {
                 captions = result
                 isLocallyTranscribing = false
