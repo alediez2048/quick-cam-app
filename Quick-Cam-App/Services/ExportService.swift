@@ -10,6 +10,7 @@ class ExportService {
         processedAudioURL: URL? = nil,
         aspectRatio: AspectRatioOption = .vertical,
         captionStyle: CaptionStyle = .classic,
+        exclusionRanges: [CMTimeRange] = [],
         completion: @escaping (Bool, String?) -> Void
     ) {
         guard let downloadsURL = FileManager.default.urls(for: .downloadsDirectory, in: .userDomainMask).first else {
@@ -61,29 +62,56 @@ class ExportService {
                     return
                 }
 
-                let timeRange = CMTimeRange(start: .zero, duration: duration)
-                try compositionVideoTrack.insertTimeRange(timeRange, of: videoTrack, at: .zero)
+                let fullTimeRange = CMTimeRange(start: .zero, duration: duration)
+                let includedRanges = Self.computeIncludedRanges(
+                    fullDuration: duration,
+                    exclusionRanges: exclusionRanges
+                )
 
+                // Insert included segments into composition
+                var insertionTime = CMTime.zero
+                for range in includedRanges {
+                    try compositionVideoTrack.insertTimeRange(range, of: videoTrack, at: insertionTime)
+                    insertionTime = insertionTime + range.duration
+                }
+
+                let audioSource: AVAssetTrack?
+                let audioAsset: AVAsset?
                 if let processedAudioURL = processedAudioURL {
-                    let processedAsset = AVURLAsset(url: processedAudioURL)
-                    let processedAudioTracks = try await processedAsset.loadTracks(withMediaType: .audio)
-                    if let processedAudioTrack = processedAudioTracks.first,
-                       let compositionAudioTrack = composition.addMutableTrack(
-                        withMediaType: .audio,
-                        preferredTrackID: kCMPersistentTrackID_Invalid
-                       ) {
-                        let processedDuration = try await processedAsset.load(.duration)
-                        let processedTimeRange = CMTimeRange(start: .zero, duration: min(duration, processedDuration))
-                        try compositionAudioTrack.insertTimeRange(processedTimeRange, of: processedAudioTrack, at: .zero)
-                    }
-                } else if let audioTrack = audioTracks.first {
-                    if let compositionAudioTrack = composition.addMutableTrack(
-                        withMediaType: .audio,
-                        preferredTrackID: kCMPersistentTrackID_Invalid
-                    ) {
-                        try compositionAudioTrack.insertTimeRange(timeRange, of: audioTrack, at: .zero)
+                    let processed = AVURLAsset(url: processedAudioURL)
+                    let processedTracks = try await processed.loadTracks(withMediaType: .audio)
+                    audioSource = processedTracks.first
+                    audioAsset = processed
+                } else {
+                    audioSource = audioTracks.first
+                    audioAsset = asset
+                }
+
+                if let audioTrackSource = audioSource,
+                   let compositionAudioTrack = composition.addMutableTrack(
+                    withMediaType: .audio,
+                    preferredTrackID: kCMPersistentTrackID_Invalid
+                   ) {
+                    var audioInsertionTime = CMTime.zero
+                    if exclusionRanges.isEmpty {
+                        // No exclusions: insert full range
+                        let audioDuration: CMTime
+                        if let audioAsset = audioAsset {
+                            audioDuration = try await audioAsset.load(.duration)
+                        } else {
+                            audioDuration = duration
+                        }
+                        let audioRange = CMTimeRange(start: .zero, duration: min(duration, audioDuration))
+                        try compositionAudioTrack.insertTimeRange(audioRange, of: audioTrackSource, at: .zero)
+                    } else {
+                        for range in includedRanges {
+                            try compositionAudioTrack.insertTimeRange(range, of: audioTrackSource, at: audioInsertionTime)
+                            audioInsertionTime = audioInsertionTime + range.duration
+                        }
                     }
                 }
+
+                let compositionDuration = insertionTime
 
                 let sourceWidth = naturalSize.width
                 let sourceHeight = naturalSize.height
@@ -107,7 +135,7 @@ class ExportService {
                 videoComposition.frameDuration = CMTime(value: 1, timescale: 30)
 
                 let instruction = AVMutableVideoCompositionInstruction()
-                instruction.timeRange = timeRange
+                instruction.timeRange = CMTimeRange(start: .zero, duration: compositionDuration)
 
                 let layerInstruction = AVMutableVideoCompositionLayerInstruction(assetTrack: compositionVideoTrack)
                 layerInstruction.setTransform(transform, at: .zero)
@@ -115,7 +143,11 @@ class ExportService {
                 instruction.layerInstructions = [layerInstruction]
                 videoComposition.instructions = [instruction]
 
-                if !captions.isEmpty {
+                let adjustedCaptions = exclusionRanges.isEmpty
+                    ? captions
+                    : Self.adjustCaptions(captions, excludedRanges: exclusionRanges)
+
+                if !adjustedCaptions.isEmpty {
                     let videoLayer = CALayer()
                     videoLayer.frame = CGRect(x: 0, y: 0, width: outputWidth, height: outputHeight)
 
@@ -123,10 +155,10 @@ class ExportService {
                     parentLayer.frame = videoLayer.frame
                     parentLayer.addSublayer(videoLayer)
 
-                    let totalDuration = CMTimeGetSeconds(duration)
+                    let totalDuration = CMTimeGetSeconds(compositionDuration)
                     let engine = CaptionStyleEngine()
                     let captionLayers = engine.buildCaptionLayers(
-                        captions: captions,
+                        captions: adjustedCaptions,
                         style: captionStyle,
                         videoSize: CGSize(width: outputWidth, height: outputHeight),
                         totalDuration: totalDuration
@@ -183,5 +215,86 @@ class ExportService {
                 }
             }
         }
+    }
+
+    // MARK: - Exclusion Range Helpers
+
+    static func computeIncludedRanges(fullDuration: CMTime, exclusionRanges: [CMTimeRange]) -> [CMTimeRange] {
+        guard !exclusionRanges.isEmpty else {
+            return [CMTimeRange(start: .zero, duration: fullDuration)]
+        }
+
+        let sorted = exclusionRanges.sorted { CMTimeCompare($0.start, $1.start) < 0 }
+
+        // Merge overlapping ranges
+        var merged: [CMTimeRange] = []
+        for range in sorted {
+            if let last = merged.last, CMTimeRangeContainsTime(last, time: range.start) || CMTimeCompare(last.end, range.start) >= 0 {
+                let newEnd = max(CMTimeGetSeconds(last.end), CMTimeGetSeconds(range.end))
+                merged[merged.count - 1] = CMTimeRange(
+                    start: last.start,
+                    end: CMTime(seconds: newEnd, preferredTimescale: 600)
+                )
+            } else {
+                merged.append(range)
+            }
+        }
+
+        // Compute complement
+        var included: [CMTimeRange] = []
+        var cursor = CMTime.zero
+        for range in merged {
+            if CMTimeCompare(cursor, range.start) < 0 {
+                included.append(CMTimeRange(start: cursor, end: range.start))
+            }
+            cursor = range.end
+        }
+        if CMTimeCompare(cursor, fullDuration) < 0 {
+            included.append(CMTimeRange(start: cursor, end: fullDuration))
+        }
+
+        return included
+    }
+
+    static func adjustCaptions(_ captions: [TimedCaption], excludedRanges: [CMTimeRange]) -> [TimedCaption] {
+        let sorted = excludedRanges.sorted { CMTimeCompare($0.start, $1.start) < 0 }
+
+        func adjustTime(_ time: CMTime) -> CMTime {
+            var offset = CMTime.zero
+            for range in sorted {
+                if CMTimeCompare(time, range.start) <= 0 { break }
+                if CMTimeCompare(time, range.end) >= 0 {
+                    offset = offset + range.duration
+                } else {
+                    offset = offset + CMTimeSubtract(time, range.start)
+                }
+            }
+            return CMTimeSubtract(time, offset)
+        }
+
+        func isExcluded(_ time: CMTime) -> Bool {
+            sorted.contains { CMTimeRangeContainsTime($0, time: time) }
+        }
+
+        var result: [TimedCaption] = []
+        for caption in captions {
+            let adjustedWords = caption.words.compactMap { word -> TimedWord? in
+                guard !isExcluded(word.startTime) else { return nil }
+                return TimedWord(
+                    text: word.text,
+                    startTime: adjustTime(word.startTime),
+                    endTime: adjustTime(word.endTime)
+                )
+            }
+            guard !adjustedWords.isEmpty else { continue }
+            let adjustedCaption = TimedCaption(
+                text: adjustedWords.map { $0.text }.joined(separator: " "),
+                startTime: adjustedWords.first!.startTime,
+                endTime: adjustedWords.last!.endTime,
+                words: adjustedWords
+            )
+            result.append(adjustedCaption)
+        }
+        return result
     }
 }

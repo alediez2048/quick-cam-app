@@ -5,6 +5,7 @@ import CoreMedia
 struct TranscriptEditorView: View {
     let captions: [TimedCaption]
     let player: AVPlayer
+    @Binding var deletedWordIndices: Set<Int>
 
     @State private var observer = TranscriptPlaybackObserver()
 
@@ -19,9 +20,20 @@ struct TranscriptEditorView: View {
                     .font(.caption)
                     .foregroundColor(.gray)
                 Spacer()
-                Text("\(allWords.count) words")
-                    .font(.caption)
-                    .foregroundColor(.gray)
+                if !deletedWordIndices.isEmpty {
+                    Button {
+                        deletedWordIndices.removeAll()
+                    } label: {
+                        Text("Restore All (\(deletedWordIndices.count))")
+                            .font(.caption)
+                            .foregroundColor(.accentColor)
+                    }
+                    .buttonStyle(.plain)
+                } else {
+                    Text("\(allWords.count) words")
+                        .font(.caption)
+                        .foregroundColor(.gray)
+                }
             }
             .padding(.horizontal)
             .padding(.top, 8)
@@ -30,15 +42,21 @@ struct TranscriptEditorView: View {
                 ScrollView {
                     FlowLayout(spacing: 4) {
                         ForEach(Array(allWords.enumerated()), id: \.offset) { index, word in
+                            let isDeleted = deletedWordIndices.contains(index)
+                            let isCurrent = index == observer.currentWordIndex
+
                             Text(word.text)
                                 .font(.system(size: 13))
+                                .strikethrough(isDeleted, color: .red)
                                 .padding(.horizontal, 4)
                                 .padding(.vertical, 2)
                                 .foregroundColor(
-                                    index == observer.currentWordIndex ? .black : .white
+                                    isDeleted ? .gray.opacity(0.5)
+                                    : isCurrent ? .black
+                                    : .white
                                 )
                                 .background(
-                                    index == observer.currentWordIndex
+                                    isCurrent && !isDeleted
                                         ? Color.accentColor
                                         : Color.clear
                                 )
@@ -49,6 +67,17 @@ struct TranscriptEditorView: View {
                                         toleranceBefore: .zero,
                                         toleranceAfter: .zero
                                     )
+                                }
+                                .contextMenu {
+                                    if isDeleted {
+                                        Button("Restore") {
+                                            deletedWordIndices.remove(index)
+                                        }
+                                    } else {
+                                        Button("Delete") {
+                                            deletedWordIndices.insert(index)
+                                        }
+                                    }
                                 }
                                 .id(index)
                         }
