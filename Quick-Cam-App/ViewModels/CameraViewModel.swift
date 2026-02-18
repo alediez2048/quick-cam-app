@@ -22,6 +22,7 @@ class CameraViewModel: ObservableObject {
     @Published var selectedAspectRatio: AspectRatioOption = .vertical
     @Published var selectedResolution: ResolutionOption
     @Published var isMirrored: Bool
+    @Published var isGridVisible: Bool
 
     let cameraService: any CameraServiceProtocol
     private let exportService = ExportService()
@@ -44,6 +45,7 @@ class CameraViewModel: ObservableObject {
         let savedResolution = ResolutionOption(rawValue: savedRawValue) ?? .hd1080p
         self.selectedResolution = savedResolution
         self.isMirrored = UserDefaults.standard.bool(forKey: "isMirrored")
+        self.isGridVisible = UserDefaults.standard.bool(forKey: "isGridVisible")
         self.cameraService = cameraService
         cameraService.selectedResolution = savedResolution
 
@@ -65,6 +67,13 @@ class CameraViewModel: ObservableObject {
             .dropFirst()
             .sink { mirrored in
                 UserDefaults.standard.set(mirrored, forKey: "isMirrored")
+            }
+            .store(in: &cancellables)
+
+        $isGridVisible
+            .dropFirst()
+            .sink { visible in
+                UserDefaults.standard.set(visible, forKey: "isGridVisible")
             }
             .store(in: &cancellables)
     }
