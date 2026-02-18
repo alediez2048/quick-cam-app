@@ -2,9 +2,8 @@ import Speech
 import CoreMedia
 
 class TranscriptionService {
-    private let speechRecognizer = SFSpeechRecognizer(locale: Locale(identifier: "en-US"))
-
-    func transcribeAudio(from videoURL: URL) async -> [TimedCaption] {
+    func transcribeAudio(from videoURL: URL, locale: Locale = Locale(identifier: "en-US")) async -> [TimedCaption] {
+        let speechRecognizer = SFSpeechRecognizer(locale: locale)
         guard let recognizer = speechRecognizer, recognizer.isAvailable else {
             return []
         }

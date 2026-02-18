@@ -33,6 +33,7 @@
 		E11111110000000000000001 /* ResolutionOption.swift in Sources */ = {isa = PBXBuildFile; fileRef = E11111110000000000000011 /* ResolutionOption.swift */; };
 		F11111110000000000000001 /* CaptionStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = F11111110000000000000011 /* CaptionStyle.swift */; };
 		F11111110000000000000002 /* CaptionStyleEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = F11111110000000000000012 /* CaptionStyleEngine.swift */; };
+		G11111110000000000000001 /* TranscriptionLanguage.swift in Sources */ = {isa = PBXBuildFile; fileRef = G11111110000000000000011 /* TranscriptionLanguage.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -76,6 +77,7 @@
 		E11111110000000000000011 /* ResolutionOption.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResolutionOption.swift; sourceTree = "<group>"; };
 		F11111110000000000000011 /* CaptionStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptionStyle.swift; sourceTree = "<group>"; };
 		F11111110000000000000012 /* CaptionStyleEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptionStyleEngine.swift; sourceTree = "<group>"; };
+		G11111110000000000000011 /* TranscriptionLanguage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptionLanguage.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -148,6 +150,7 @@
 				A22222220000000000000001 /* RecordedVideo.swift */,
 				A22222220000000000000002 /* TimedCaption.swift */,
 				F11111110000000000000011 /* CaptionStyle.swift */,
+				G11111110000000000000011 /* TranscriptionLanguage.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -302,6 +305,7 @@
 				E11111110000000000000001 /* ResolutionOption.swift in Sources */,
 				F11111110000000000000001 /* CaptionStyle.swift in Sources */,
 				F11111110000000000000002 /* CaptionStyleEngine.swift in Sources */,
+				G11111110000000000000001 /* TranscriptionLanguage.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
