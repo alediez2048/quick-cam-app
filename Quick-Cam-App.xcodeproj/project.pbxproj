@@ -30,6 +30,8 @@
 		C11111110000000000000002 /* AudioProcessingServiceTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = C11111110000000000000012 /* AudioProcessingServiceTests.swift */; };
 		D11111110000000000000001 /* AspectRatioOption.swift in Sources */ = {isa = PBXBuildFile; fileRef = D11111110000000000000011 /* AspectRatioOption.swift */; };
 		E11111110000000000000001 /* ResolutionOption.swift in Sources */ = {isa = PBXBuildFile; fileRef = E11111110000000000000011 /* ResolutionOption.swift */; };
+		F11111110000000000000001 /* CaptionStyle.swift in Sources */ = {isa = PBXBuildFile; fileRef = F11111110000000000000011 /* CaptionStyle.swift */; };
+		F11111110000000000000002 /* CaptionStyleEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = F11111110000000000000012 /* CaptionStyleEngine.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -70,6 +72,8 @@
 		C11111110000000000000012 /* AudioProcessingServiceTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioProcessingServiceTests.swift; sourceTree = "<group>"; };
 		D11111110000000000000011 /* AspectRatioOption.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AspectRatioOption.swift; sourceTree = "<group>"; };
 		E11111110000000000000011 /* ResolutionOption.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ResolutionOption.swift; sourceTree = "<group>"; };
+		F11111110000000000000011 /* CaptionStyle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptionStyle.swift; sourceTree = "<group>"; };
+		F11111110000000000000012 /* CaptionStyleEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CaptionStyleEngine.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -141,6 +145,7 @@
 				E11111110000000000000011 /* ResolutionOption.swift */,
 				A22222220000000000000001 /* RecordedVideo.swift */,
 				A22222220000000000000002 /* TimedCaption.swift */,
+				F11111110000000000000011 /* CaptionStyle.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -153,6 +158,7 @@
 				A22222220000000000000005 /* TranscriptionService.swift */,
 				A22222220000000000000006 /* RecordingsRepository.swift */,
 				C11111110000000000000011 /* AudioProcessingService.swift */,
+				F11111110000000000000012 /* CaptionStyleEngine.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -290,6 +296,8 @@
 				C11111110000000000000001 /* AudioProcessingService.swift in Sources */,
 				D11111110000000000000001 /* AspectRatioOption.swift in Sources */,
 				E11111110000000000000001 /* ResolutionOption.swift in Sources */,
+				F11111110000000000000001 /* CaptionStyle.swift in Sources */,
+				F11111110000000000000002 /* CaptionStyleEngine.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

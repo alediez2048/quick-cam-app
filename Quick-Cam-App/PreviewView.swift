@@ -9,7 +9,7 @@ struct PreviewView: View {
     let isTranscribing: Bool
     let isProcessingAudio: Bool
     let transcriptionProgress: String
-    let onSave: (String, Bool, Bool) -> Void
+    let onSave: (String, Bool, Bool, CaptionStyle) -> Void
     let onRetake: () -> Void
 
     @State private var player: AVPlayer?
@@ -131,7 +131,7 @@ struct PreviewView: View {
                     .buttonStyle(.plain)
 
                     Button(action: {
-                        onSave(videoTitle, enableCaptions, enhanceAudio)
+                        onSave(videoTitle, enableCaptions, enhanceAudio, .classic)
                     }) {
                         VStack(spacing: 8) {
                             Image(systemName: "square.and.arrow.down")

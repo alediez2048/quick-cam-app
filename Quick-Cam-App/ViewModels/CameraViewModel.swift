@@ -194,7 +194,7 @@ class CameraViewModel: ObservableObject {
         }
     }
 
-    func exportToDownloads(title: String, enableCaptions: Bool = false, enhanceAudio: Bool = false, aspectRatio: AspectRatioOption = .vertical, completion: @escaping (Bool, String?) -> Void) {
+    func exportToDownloads(title: String, enableCaptions: Bool = false, enhanceAudio: Bool = false, aspectRatio: AspectRatioOption = .vertical, captionStyle: CaptionStyle = .classic, completion: @escaping (Bool, String?) -> Void) {
         guard let sourceURL = recordedVideoURL else {
             completion(false, "No video to export")
             return
@@ -231,7 +231,7 @@ class CameraViewModel: ObservableObject {
                 }
             }
 
-            exportService.exportToDownloads(sourceURL: sourceURL, title: title, captions: captions, processedAudioURL: processedAudioURL, aspectRatio: aspectRatio) { [weak self] success, path in
+            exportService.exportToDownloads(sourceURL: sourceURL, title: title, captions: captions, processedAudioURL: processedAudioURL, aspectRatio: aspectRatio, captionStyle: captionStyle) { [weak self] success, path in
                 guard let self = self else { return }
                 self.isExporting = false
                 if success {
