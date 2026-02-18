@@ -9,7 +9,7 @@ struct PreviewView: View {
     let isTranscribing: Bool
     let isProcessingAudio: Bool
     let transcriptionProgress: String
-    let onSave: (String, Bool, Bool, CaptionStyle) -> Void
+    let onSave: (String, Bool, Bool, CaptionStyle, TranscriptionLanguage) -> Void
     let onRetake: () -> Void
 
     @State private var player: AVPlayer?
@@ -17,6 +17,7 @@ struct PreviewView: View {
     @State private var enableCaptions: Bool = false
     @State private var enhanceAudio: Bool = false
     @State private var selectedCaptionStyle: CaptionStyle = .classic
+    @AppStorage("transcriptionLanguage") private var selectedLanguage: TranscriptionLanguage = .english
     @FocusState private var isTitleFocused: Bool
 
     var body: some View {
@@ -84,8 +85,40 @@ struct PreviewView: View {
                 .padding(.horizontal)
                 .padding(.top, 12)
 
-                // Caption style picker
+                // Caption options
                 if enableCaptions {
+                    // Language selector
+                    HStack {
+                        Text("Language")
+                            .foregroundColor(.white)
+                        Spacer()
+                        Picker("", selection: $selectedLanguage) {
+                            ForEach(TranscriptionLanguage.allCases) { lang in
+                                Text(lang.displayName).tag(lang)
+                            }
+                        }
+                        .frame(width: 150)
+                    }
+                    .padding()
+                    .background(Color.white.opacity(0.1))
+                    .cornerRadius(8)
+                    .padding(.horizontal)
+                    .padding(.top, 8)
+
+                    if !selectedLanguage.isAvailable {
+                        HStack(spacing: 6) {
+                            Image(systemName: "exclamationmark.triangle.fill")
+                                .foregroundColor(.yellow)
+                                .font(.caption)
+                            Text("\(selectedLanguage.displayName) is not available on this system")
+                                .font(.caption)
+                                .foregroundColor(.yellow)
+                        }
+                        .padding(.horizontal)
+                        .padding(.top, 4)
+                    }
+
+                    // Caption style picker
                     CaptionStylePickerView(selectedStyle: $selectedCaptionStyle)
                 }
 
@@ -139,7 +172,7 @@ struct PreviewView: View {
                     .buttonStyle(.plain)
 
                     Button(action: {
-                        onSave(videoTitle, enableCaptions, enhanceAudio, selectedCaptionStyle)
+                        onSave(videoTitle, enableCaptions, enhanceAudio, selectedCaptionStyle, selectedLanguage)
                     }) {
                         VStack(spacing: 8) {
                             Image(systemName: "square.and.arrow.down")
