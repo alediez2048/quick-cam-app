@@ -34,6 +34,26 @@ enum CaptionPosition: String, CaseIterable, Identifiable {
     }
 }
 
+struct CaptionFont: Identifiable, Hashable {
+    let displayName: String
+    let postScriptName: String
+
+    var id: String { postScriptName }
+
+    static let allFonts: [CaptionFont] = [
+        CaptionFont(displayName: "Helvetica", postScriptName: "HelveticaNeue-Bold"),
+        CaptionFont(displayName: "Avenir Next", postScriptName: "AvenirNext-Bold"),
+        CaptionFont(displayName: "Futura", postScriptName: "Futura-Bold"),
+        CaptionFont(displayName: "Gill Sans", postScriptName: "GillSans-Bold"),
+        CaptionFont(displayName: "Arial Rounded", postScriptName: "ArialRoundedMTBold"),
+        CaptionFont(displayName: "Rockwell", postScriptName: "Rockwell-Bold"),
+        CaptionFont(displayName: "Impact", postScriptName: "Impact"),
+        CaptionFont(displayName: "Chalkboard", postScriptName: "ChalkboardSE-Bold"),
+        CaptionFont(displayName: "Marker Felt", postScriptName: "MarkerFelt-Wide"),
+        CaptionFont(displayName: "American Typewriter", postScriptName: "AmericanTypewriter-Bold"),
+    ]
+}
+
 struct CaptionStyle: Equatable {
     var styleName: String
     var fontName: String
@@ -43,6 +63,9 @@ struct CaptionStyle: Equatable {
     var backgroundColor: NSColor
     var position: CaptionPosition
     var animationType: CaptionAnimationType
+    var strokeColor: NSColor
+    var strokeWidth: CGFloat
+    var textHighlighterColor: NSColor
 
     static func == (lhs: CaptionStyle, rhs: CaptionStyle) -> Bool {
         lhs.styleName == rhs.styleName
@@ -53,6 +76,9 @@ struct CaptionStyle: Equatable {
             && lhs.backgroundColor == rhs.backgroundColor
             && lhs.position == rhs.position
             && lhs.animationType == rhs.animationType
+            && lhs.strokeColor == rhs.strokeColor
+            && lhs.strokeWidth == rhs.strokeWidth
+            && lhs.textHighlighterColor == rhs.textHighlighterColor
     }
 
     static let classic = CaptionStyle(
@@ -63,7 +89,10 @@ struct CaptionStyle: Equatable {
         highlightColor: .yellow,
         backgroundColor: NSColor.black.withAlphaComponent(0.6),
         position: .bottom,
-        animationType: .classic
+        animationType: .classic,
+        strokeColor: .black,
+        strokeWidth: 0,
+        textHighlighterColor: .clear
     )
 
     static let karaoke = CaptionStyle(
@@ -74,29 +103,38 @@ struct CaptionStyle: Equatable {
         highlightColor: .yellow,
         backgroundColor: NSColor.black.withAlphaComponent(0.6),
         position: .bottom,
-        animationType: .karaoke
+        animationType: .karaoke,
+        strokeColor: .black,
+        strokeWidth: 4,
+        textHighlighterColor: .clear
     )
 
     static let popup = CaptionStyle(
         styleName: "Pop-up",
-        fontName: "HelveticaNeue-Bold",
+        fontName: "Futura-Bold",
         fontSize: 80,
         textColor: .white,
         highlightColor: .cyan,
         backgroundColor: .clear,
         position: .center,
-        animationType: .popup
+        animationType: .popup,
+        strokeColor: .black,
+        strokeWidth: 5,
+        textHighlighterColor: .clear
     )
 
     static let boxed = CaptionStyle(
         styleName: "Boxed",
-        fontName: "HelveticaNeue-Bold",
+        fontName: "AvenirNext-Bold",
         fontSize: 64,
         textColor: .white,
         highlightColor: .yellow,
-        backgroundColor: NSColor.black.withAlphaComponent(0.8),
+        backgroundColor: .clear,
         position: .bottom,
-        animationType: .boxed
+        animationType: .boxed,
+        strokeColor: .black,
+        strokeWidth: 0,
+        textHighlighterColor: NSColor.yellow.withAlphaComponent(0.85)
     )
 
     static let allPresets: [CaptionStyle] = [.classic, .karaoke, .popup, .boxed]

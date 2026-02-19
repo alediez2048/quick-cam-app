@@ -47,6 +47,25 @@ struct CaptionStylePickerView: View {
 
                 Divider().background(Color.white.opacity(0.1))
 
+                // Font
+                HStack {
+                    Text("Font")
+                        .foregroundColor(.white)
+                    Spacer()
+                    Picker("", selection: $selectedStyle.fontName) {
+                        ForEach(CaptionFont.allFonts) { font in
+                            Text(font.displayName)
+                                .font(.custom(font.postScriptName, size: 13))
+                                .tag(font.postScriptName)
+                        }
+                    }
+                    .frame(width: 180)
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
+
+                Divider().background(Color.white.opacity(0.1))
+
                 // Font Size
                 HStack {
                     Text("Size")
@@ -102,6 +121,44 @@ struct CaptionStylePickerView: View {
                 }
                 .padding(.horizontal, 12)
                 .padding(.vertical, 10)
+
+                Divider().background(Color.white.opacity(0.1))
+
+                // Outline
+                HStack {
+                    Text("Outline")
+                        .foregroundColor(.white)
+                    Spacer()
+                    Text(selectedStyle.strokeWidth > 0 ? "\(Int(selectedStyle.strokeWidth))" : "Off")
+                        .foregroundColor(.gray)
+                        .monospacedDigit()
+                }
+                .padding(.horizontal, 12)
+                .padding(.top, 10)
+                .padding(.bottom, 4)
+
+                HStack(spacing: 8) {
+                    Slider(value: $selectedStyle.strokeWidth, in: 0...8, step: 1)
+                    if selectedStyle.strokeWidth > 0 {
+                        ColorPicker("", selection: strokeColorBinding)
+                            .labelsHidden()
+                    }
+                }
+                .padding(.horizontal, 12)
+                .padding(.bottom, 10)
+
+                Divider().background(Color.white.opacity(0.1))
+
+                // Highlighter
+                HStack {
+                    Text("Highlighter")
+                        .foregroundColor(.white)
+                    Spacer()
+                    ColorPicker("", selection: textHighlighterColorBinding, supportsOpacity: true)
+                        .labelsHidden()
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 10)
             }
             .background(Color.white.opacity(0.1))
             .cornerRadius(8)
@@ -125,8 +182,9 @@ struct CaptionStylePickerView: View {
                         .frame(height: 36)
 
                     Text("Aa")
-                        .font(.system(size: 14, weight: .bold))
+                        .font(.custom(preset.fontName, size: 14).bold())
                         .foregroundColor(Color(nsColor: preset.textColor))
+                        .shadow(color: preset.strokeWidth > 0 ? Color(nsColor: preset.strokeColor).opacity(0.8) : .clear, radius: 1, x: 1, y: 1)
                 }
 
                 Text(preset.styleName)
@@ -165,6 +223,20 @@ struct CaptionStylePickerView: View {
         Binding(
             get: { Color(nsColor: selectedStyle.backgroundColor) },
             set: { selectedStyle.backgroundColor = NSColor($0) }
+        )
+    }
+
+    private var strokeColorBinding: Binding<Color> {
+        Binding(
+            get: { Color(nsColor: selectedStyle.strokeColor) },
+            set: { selectedStyle.strokeColor = NSColor($0) }
+        )
+    }
+
+    private var textHighlighterColorBinding: Binding<Color> {
+        Binding(
+            get: { Color(nsColor: selectedStyle.textHighlighterColor) },
+            set: { selectedStyle.textHighlighterColor = NSColor($0) }
         )
     }
 }
