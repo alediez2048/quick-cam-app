@@ -39,6 +39,8 @@ struct ContentView: View {
                         isTranscribing: cameraViewModel.isTranscribing,
                         isProcessingAudio: cameraViewModel.isProcessingAudio,
                         transcriptionProgress: cameraViewModel.transcriptionProgress,
+                        isGeneratingPreview: cameraViewModel.isGeneratingPreview,
+                        previewPlayerItem: cameraViewModel.previewPlayerItem,
                         onSave: { title, enableCaptions, enhanceAudio, captionStyle, language, preTranscribedCaptions, exclusionRanges in
                             cameraViewModel.exportToDownloads(title: title, enableCaptions: enableCaptions, enhanceAudio: enhanceAudio, aspectRatio: cameraViewModel.selectedAspectRatio, captionStyle: captionStyle, language: language, preTranscribedCaptions: preTranscribedCaptions, exclusionRanges: exclusionRanges) { success, path in
                                 guard success else { return }
@@ -53,6 +55,20 @@ struct ContentView: View {
                             cameraViewModel.discardRecording()
                             showPreview = false
                             cameraViewModel.setupAndStartSession()
+                        },
+                        onPreview: { enableCaptions, enhanceAudio, aspectRatio, captionStyle, language, preTranscribedCaptions, exclusionRanges in
+                            cameraViewModel.generatePreview(
+                                enableCaptions: enableCaptions,
+                                enhanceAudio: enhanceAudio,
+                                aspectRatio: aspectRatio,
+                                captionStyle: captionStyle,
+                                language: language,
+                                preTranscribedCaptions: preTranscribedCaptions,
+                                exclusionRanges: exclusionRanges
+                            )
+                        },
+                        onDismissPreview: {
+                            cameraViewModel.previewPlayerItem = nil
                         }
                     )
                 } else {
