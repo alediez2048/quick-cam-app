@@ -15,16 +15,17 @@ class CaptionStyleEngine {
         return CGColor(srgbRed: 1, green: 1, blue: 1, alpha: 1)
     }
 
-    /// Pre-render text into a CGImage using Core Text.
-    /// CATextLayer doesn't reliably render in AVVideoCompositionCoreAnimationTool's offscreen context,
-    /// so we draw text into a bitmap and use it as a plain CALayer's contents.
+    /// Pre-render text into a CGImage using Core Text, with optional stroke outline and highlighter background.
     private func renderTextImage(
         text: String,
         fontName: String,
         fontSize: CGFloat,
         textColor: CGColor,
         size: CGSize,
-        alignment: CTTextAlignment = .center
+        alignment: CTTextAlignment = .center,
+        strokeColor: CGColor? = nil,
+        strokeWidth: CGFloat = 0,
+        highlighterColor: CGColor? = nil
     ) -> CGImage? {
         let w = Int(size.width)
         let h = Int(size.height)
@@ -48,27 +49,67 @@ class CaptionStyleEngine {
         )
         let paragraphStyle = CTParagraphStyleCreate(&alignSetting, 1)
 
-        let attributes: [NSAttributedString.Key: Any] = [
+        // --- Highlighter background ---
+        if let hlColor = highlighterColor, hlColor.alpha > 0 {
+            let measureAttrs: [NSAttributedString.Key: Any] = [
+                NSAttributedString.Key(kCTFontAttributeName as String): ctFont,
+                NSAttributedString.Key(kCTParagraphStyleAttributeName as String): paragraphStyle
+            ]
+            let measureStr = NSAttributedString(string: text, attributes: measureAttrs)
+            let framesetter = CTFramesetterCreateWithAttributedString(measureStr as CFAttributedString)
+            let constraintSize = CGSize(width: size.width, height: CGFloat.greatestFiniteMagnitude)
+            let textSize = CTFramesetterSuggestFrameSizeWithConstraints(framesetter, CFRange(location: 0, length: 0), nil, constraintSize, nil)
+
+            let hPad = fontSize * 0.15
+            let vPad = fontSize * 0.08
+            let hlWidth = textSize.width + hPad * 2
+            let hlHeight = textSize.height + vPad * 2
+            let hlX = (size.width - hlWidth) / 2
+            let hlY = (size.height - hlHeight) / 2
+            let hlRect = CGRect(x: hlX, y: hlY, width: hlWidth, height: hlHeight)
+            let cornerRadius = fontSize * 0.12
+
+            let hlPath = CGPath(roundedRect: hlRect, cornerWidth: cornerRadius, cornerHeight: cornerRadius, transform: nil)
+            ctx.addPath(hlPath)
+            ctx.setFillColor(hlColor)
+            ctx.fillPath()
+        }
+
+        // --- Build fill attributes ---
+        let fillAttributes: [NSAttributedString.Key: Any] = [
             NSAttributedString.Key(kCTFontAttributeName as String): ctFont,
             NSAttributedString.Key(kCTForegroundColorAttributeName as String): textColor,
             NSAttributedString.Key(kCTParagraphStyleAttributeName as String): paragraphStyle
         ]
 
-        let attrString = NSAttributedString(string: text, attributes: attributes)
-        let framesetter = CTFramesetterCreateWithAttributedString(attrString as CFAttributedString)
+        let fillString = NSAttributedString(string: text, attributes: fillAttributes)
+        let fillFramesetter = CTFramesetterCreateWithAttributedString(fillString as CFAttributedString)
 
-        // Measure text height for vertical centering
         let constraintSize = CGSize(width: size.width, height: CGFloat.greatestFiniteMagnitude)
-        let textSize = CTFramesetterSuggestFrameSizeWithConstraints(framesetter, CFRange(location: 0, length: 0), nil, constraintSize, nil)
+        let textSize = CTFramesetterSuggestFrameSizeWithConstraints(fillFramesetter, CFRange(location: 0, length: 0), nil, constraintSize, nil)
 
-        // CTFrame draws in CG coordinates (y-up): first line starts at top of path rect
         let yOffset = max(0, (size.height - textSize.height) / 2)
         let textRect = CGRect(x: 0, y: yOffset, width: size.width, height: textSize.height)
         let path = CGMutablePath()
         path.addRect(textRect)
-        let frame = CTFramesetterCreateFrame(framesetter, CFRange(location: 0, length: 0), path, nil)
 
-        CTFrameDraw(frame, ctx)
+        // --- Stroke pass (drawn first, behind fill) ---
+        if strokeWidth > 0, let sColor = strokeColor {
+            let strokeAttrs: [NSAttributedString.Key: Any] = [
+                NSAttributedString.Key(kCTFontAttributeName as String): ctFont,
+                NSAttributedString.Key(kCTStrokeWidthAttributeName as String): strokeWidth as NSNumber,
+                NSAttributedString.Key(kCTStrokeColorAttributeName as String): sColor,
+                NSAttributedString.Key(kCTParagraphStyleAttributeName as String): paragraphStyle
+            ]
+            let strokeStr = NSAttributedString(string: text, attributes: strokeAttrs)
+            let strokeFramesetter = CTFramesetterCreateWithAttributedString(strokeStr as CFAttributedString)
+            let strokeFrame = CTFramesetterCreateFrame(strokeFramesetter, CFRange(location: 0, length: 0), path, nil)
+            CTFrameDraw(strokeFrame, ctx)
+        }
+
+        // --- Fill pass (drawn on top) ---
+        let fillFrame = CTFramesetterCreateFrame(fillFramesetter, CFRange(location: 0, length: 0), path, nil)
+        CTFrameDraw(fillFrame, ctx)
 
         return ctx.makeImage()
     }
@@ -122,6 +163,8 @@ class CaptionStyleEngine {
         let textHeight: CGFloat = 200
         let textWidth = videoSize.width - (padding * 2)
         let textCGColor = sRGBColor(from: style.textColor)
+        let strokeCGColor = sRGBColor(from: style.strokeColor)
+        let highlighterCGColor = sRGBColor(from: style.textHighlighterColor)
 
         for caption in captions {
             let layer = CALayer()
@@ -129,7 +172,12 @@ class CaptionStyleEngine {
             layer.frame = CGRect(x: padding, y: yOrigin, width: textWidth, height: textHeight)
             layer.backgroundColor = sRGBColor(from: style.backgroundColor)
 
-            if let img = renderTextImage(text: caption.text, fontName: style.fontName, fontSize: style.fontSize, textColor: textCGColor, size: CGSize(width: textWidth, height: textHeight)) {
+            if let img = renderTextImage(
+                text: caption.text, fontName: style.fontName, fontSize: style.fontSize,
+                textColor: textCGColor, size: CGSize(width: textWidth, height: textHeight),
+                strokeColor: strokeCGColor, strokeWidth: style.strokeWidth,
+                highlighterColor: highlighterCGColor
+            ) {
                 layer.contents = img
             }
 
@@ -158,6 +206,8 @@ class CaptionStyleEngine {
 
         let textCGColor = sRGBColor(from: style.textColor)
         let highlightCGColor = sRGBColor(from: style.highlightColor)
+        let strokeCGColor = sRGBColor(from: style.strokeColor)
+        let highlighterCGColor = sRGBColor(from: style.textHighlighterColor)
 
         for caption in captions {
             let containerLayer = CALayer()
@@ -200,15 +250,24 @@ class CaptionStyleEngine {
                 // Base word in text color (always visible)
                 let baseLayer = CALayer()
                 baseLayer.frame = wordFrame
-                if let img = renderTextImage(text: word.text, fontName: style.fontName, fontSize: style.fontSize, textColor: textCGColor, size: wordSize, alignment: .left) {
+                if let img = renderTextImage(
+                    text: word.text, fontName: style.fontName, fontSize: style.fontSize,
+                    textColor: textCGColor, size: wordSize, alignment: .left,
+                    strokeColor: strokeCGColor, strokeWidth: style.strokeWidth,
+                    highlighterColor: highlighterCGColor
+                ) {
                     baseLayer.contents = img
                 }
                 containerLayer.addSublayer(baseLayer)
 
-                // Highlight word overlay (fades in/out during word timing)
+                // Highlight word overlay (fades in/out during word timing) — no highlighter to avoid double-drawing
                 let highlightLayer = CALayer()
                 highlightLayer.frame = wordFrame
-                if let img = renderTextImage(text: word.text, fontName: style.fontName, fontSize: style.fontSize, textColor: highlightCGColor, size: wordSize, alignment: .left) {
+                if let img = renderTextImage(
+                    text: word.text, fontName: style.fontName, fontSize: style.fontSize,
+                    textColor: highlightCGColor, size: wordSize, alignment: .left,
+                    strokeColor: strokeCGColor, strokeWidth: style.strokeWidth
+                ) {
                     highlightLayer.contents = img
                 }
                 highlightLayer.opacity = 0
@@ -239,6 +298,8 @@ class CaptionStyleEngine {
         let textHeight: CGFloat = 200
         let textWidth = videoSize.width - (padding * 2)
         let highlightCGColor = sRGBColor(from: style.highlightColor)
+        let strokeCGColor = sRGBColor(from: style.strokeColor)
+        let highlighterCGColor = sRGBColor(from: style.textHighlighterColor)
 
         for caption in captions {
             let containerLayer = CALayer()
@@ -280,7 +341,12 @@ class CaptionStyleEngine {
                 wordLayer.anchorPoint = CGPoint(x: 0.5, y: 0.5)
                 wordLayer.position = CGPoint(x: xOffset + wordSize.width / 2, y: verticalPadding + wordSize.height / 2)
 
-                if let img = renderTextImage(text: word.text, fontName: style.fontName, fontSize: style.fontSize, textColor: highlightCGColor, size: wordSize, alignment: .center) {
+                if let img = renderTextImage(
+                    text: word.text, fontName: style.fontName, fontSize: style.fontSize,
+                    textColor: highlightCGColor, size: wordSize, alignment: .center,
+                    strokeColor: strokeCGColor, strokeWidth: style.strokeWidth,
+                    highlighterColor: highlighterCGColor
+                ) {
                     wordLayer.contents = img
                 }
 
@@ -324,6 +390,8 @@ class CaptionStyleEngine {
         let textHeight: CGFloat = 200
         let textWidth = videoSize.width - (padding * 2)
         let textCGColor = sRGBColor(from: style.textColor)
+        let strokeCGColor = sRGBColor(from: style.strokeColor)
+        let highlighterCGColor = sRGBColor(from: style.textHighlighterColor)
 
         for caption in captions {
             let containerLayer = CALayer()
@@ -370,7 +438,12 @@ class CaptionStyleEngine {
                 let wordLayer = CALayer()
                 wordLayer.frame = CGRect(x: 0, y: boxPadding, width: boxWidth, height: wordHeight)
                 let wordSize = CGSize(width: boxWidth, height: wordHeight)
-                if let img = renderTextImage(text: word.text, fontName: style.fontName, fontSize: style.fontSize, textColor: textCGColor, size: wordSize, alignment: .center) {
+                if let img = renderTextImage(
+                    text: word.text, fontName: style.fontName, fontSize: style.fontSize,
+                    textColor: textCGColor, size: wordSize, alignment: .center,
+                    strokeColor: strokeCGColor, strokeWidth: style.strokeWidth,
+                    highlighterColor: highlighterCGColor
+                ) {
                     wordLayer.contents = img
                 }
 
