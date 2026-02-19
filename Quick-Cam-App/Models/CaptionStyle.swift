@@ -1,5 +1,24 @@
 import AppKit
 
+struct CaptionFont: Identifiable, Hashable {
+    let id: String
+    let displayName: String
+    let fontName: String
+
+    static let allFonts: [CaptionFont] = [
+        CaptionFont(id: "helvetica", displayName: "Helvetica", fontName: "HelveticaNeue-Bold"),
+        CaptionFont(id: "avenir", displayName: "Avenir Next", fontName: "AvenirNext-Bold"),
+        CaptionFont(id: "futura", displayName: "Futura", fontName: "Futura-Bold"),
+        CaptionFont(id: "gillsans", displayName: "Gill Sans", fontName: "GillSans-Bold"),
+        CaptionFont(id: "arialrounded", displayName: "Arial Rounded", fontName: "ArialRoundedMTBold"),
+        CaptionFont(id: "rockwell", displayName: "Rockwell", fontName: "Rockwell-Bold"),
+        CaptionFont(id: "impact", displayName: "Impact", fontName: "Impact"),
+        CaptionFont(id: "chalkboard", displayName: "Chalkboard", fontName: "ChalkboardSE-Bold"),
+        CaptionFont(id: "markerfelt", displayName: "Marker Felt", fontName: "MarkerFelt-Wide"),
+        CaptionFont(id: "typewriter", displayName: "American Typewriter", fontName: "AmericanTypewriter-Bold"),
+    ]
+}
+
 enum CaptionAnimationType: String, CaseIterable, Identifiable {
     case karaoke
     case popup
@@ -32,26 +51,6 @@ enum CaptionPosition: String, CaseIterable, Identifiable {
         case .bottom: return "Bottom"
         }
     }
-}
-
-struct CaptionFont: Identifiable, Hashable {
-    let displayName: String
-    let postScriptName: String
-
-    var id: String { postScriptName }
-
-    static let allFonts: [CaptionFont] = [
-        CaptionFont(displayName: "Helvetica", postScriptName: "HelveticaNeue-Bold"),
-        CaptionFont(displayName: "Avenir Next", postScriptName: "AvenirNext-Bold"),
-        CaptionFont(displayName: "Futura", postScriptName: "Futura-Bold"),
-        CaptionFont(displayName: "Gill Sans", postScriptName: "GillSans-Bold"),
-        CaptionFont(displayName: "Arial Rounded", postScriptName: "ArialRoundedMTBold"),
-        CaptionFont(displayName: "Rockwell", postScriptName: "Rockwell-Bold"),
-        CaptionFont(displayName: "Impact", postScriptName: "Impact"),
-        CaptionFont(displayName: "Chalkboard", postScriptName: "ChalkboardSE-Bold"),
-        CaptionFont(displayName: "Marker Felt", postScriptName: "MarkerFelt-Wide"),
-        CaptionFont(displayName: "American Typewriter", postScriptName: "AmericanTypewriter-Bold"),
-    ]
 }
 
 struct CaptionStyle: Equatable {
@@ -105,13 +104,13 @@ struct CaptionStyle: Equatable {
         position: .bottom,
         animationType: .karaoke,
         strokeColor: .black,
-        strokeWidth: 4,
+        strokeWidth: 0,
         textHighlighterColor: .clear
     )
 
     static let popup = CaptionStyle(
         styleName: "Pop-up",
-        fontName: "Futura-Bold",
+        fontName: "HelveticaNeue-Bold",
         fontSize: 80,
         textColor: .white,
         highlightColor: .cyan,
@@ -119,22 +118,22 @@ struct CaptionStyle: Equatable {
         position: .center,
         animationType: .popup,
         strokeColor: .black,
-        strokeWidth: 5,
+        strokeWidth: 0,
         textHighlighterColor: .clear
     )
 
     static let boxed = CaptionStyle(
         styleName: "Boxed",
-        fontName: "AvenirNext-Bold",
+        fontName: "HelveticaNeue-Bold",
         fontSize: 64,
         textColor: .white,
         highlightColor: .yellow,
-        backgroundColor: .clear,
+        backgroundColor: NSColor.black.withAlphaComponent(0.8),
         position: .bottom,
         animationType: .boxed,
         strokeColor: .black,
         strokeWidth: 0,
-        textHighlighterColor: NSColor.yellow.withAlphaComponent(0.85)
+        textHighlighterColor: .clear
     )
 
     static let allPresets: [CaptionStyle] = [.classic, .karaoke, .popup, .boxed]
