@@ -23,6 +23,8 @@ class CameraViewModel: ObservableObject {
     @Published var selectedResolution: ResolutionOption
     @Published var isMirrored: Bool
     @Published var isGridVisible: Bool
+    @Published var previewPlayerItem: AVPlayerItem?
+    @Published var isGeneratingPreview = false
 
     let cameraService: any CameraServiceProtocol
     private let exportService = ExportService()
@@ -31,6 +33,9 @@ class CameraViewModel: ObservableObject {
     private let recordingsRepository = RecordingsRepository()
     private var cancellables = Set<AnyCancellable>()
     private var countdownTimer: Timer?
+
+    private var cachedProcessedAudioURL: URL?
+    private var cachedAudioSourceURL: URL?
 
     var session: AVCaptureSession {
         cameraService.session
@@ -194,6 +199,80 @@ class CameraViewModel: ObservableObject {
         }
     }
 
+    func generatePreview(
+        enableCaptions: Bool,
+        enhanceAudio: Bool,
+        aspectRatio: AspectRatioOption,
+        captionStyle: CaptionStyle,
+        language: TranscriptionLanguage,
+        preTranscribedCaptions: [TimedCaption],
+        exclusionRanges: [CMTimeRange]
+    ) {
+        guard let sourceURL = recordedVideoURL else { return }
+
+        isGeneratingPreview = true
+
+        Task {
+            var captions: [TimedCaption] = []
+            if enableCaptions {
+                if !preTranscribedCaptions.isEmpty {
+                    captions = preTranscribedCaptions
+                } else {
+                    await MainActor.run {
+                        self.isTranscribing = true
+                        self.transcriptionProgress = "Transcribing audio..."
+                    }
+                    captions = (try? await transcriptionService.transcribeAudio(from: sourceURL, locale: language.locale)) ?? []
+                    await MainActor.run {
+                        self.isTranscribing = false
+                        self.transcriptionProgress = ""
+                    }
+                }
+            }
+
+            var processedAudioURL: URL? = nil
+            if enhanceAudio {
+                if let cached = cachedProcessedAudioURL, cachedAudioSourceURL == sourceURL {
+                    processedAudioURL = cached
+                } else {
+                    await MainActor.run {
+                        self.isProcessingAudio = true
+                    }
+                    do {
+                        processedAudioURL = try await audioProcessingService.process(inputURL: sourceURL)
+                        cachedProcessedAudioURL = processedAudioURL
+                        cachedAudioSourceURL = sourceURL
+                    } catch {
+                        print("Audio processing failed, falling back to original audio: \(error)")
+                    }
+                    await MainActor.run {
+                        self.isProcessingAudio = false
+                    }
+                }
+            }
+
+            do {
+                let playerItem = try await exportService.buildPreviewPlayerItem(
+                    sourceURL: sourceURL,
+                    captions: captions,
+                    processedAudioURL: processedAudioURL,
+                    aspectRatio: aspectRatio,
+                    captionStyle: captionStyle,
+                    exclusionRanges: exclusionRanges
+                )
+                await MainActor.run {
+                    self.previewPlayerItem = playerItem
+                    self.isGeneratingPreview = false
+                }
+            } catch {
+                await MainActor.run {
+                    self.error = error.localizedDescription
+                    self.isGeneratingPreview = false
+                }
+            }
+        }
+    }
+
     func exportToDownloads(title: String, enableCaptions: Bool = false, enhanceAudio: Bool = false, aspectRatio: AspectRatioOption = .vertical, captionStyle: CaptionStyle = .classic, language: TranscriptionLanguage = .english, preTranscribedCaptions: [TimedCaption] = [], exclusionRanges: [CMTimeRange] = [], completion: @escaping (Bool, String?) -> Void) {
         guard let sourceURL = recordedVideoURL else {
             completion(false, "No video to export")
@@ -222,16 +301,22 @@ class CameraViewModel: ObservableObject {
 
             var processedAudioURL: URL? = nil
             if enhanceAudio {
-                await MainActor.run {
-                    self.isProcessingAudio = true
-                }
-                do {
-                    processedAudioURL = try await audioProcessingService.process(inputURL: sourceURL)
-                } catch {
-                    print("Audio processing failed, falling back to original audio: \(error)")
-                }
-                await MainActor.run {
-                    self.isProcessingAudio = false
+                if let cached = cachedProcessedAudioURL, cachedAudioSourceURL == sourceURL {
+                    processedAudioURL = cached
+                } else {
+                    await MainActor.run {
+                        self.isProcessingAudio = true
+                    }
+                    do {
+                        processedAudioURL = try await audioProcessingService.process(inputURL: sourceURL)
+                        cachedProcessedAudioURL = processedAudioURL
+                        cachedAudioSourceURL = sourceURL
+                    } catch {
+                        print("Audio processing failed, falling back to original audio: \(error)")
+                    }
+                    await MainActor.run {
+                        self.isProcessingAudio = false
+                    }
                 }
             }
 
@@ -267,5 +352,7 @@ class CameraViewModel: ObservableObject {
         guard let url = recordedVideoURL else { return }
         recordingsRepository.discardRecording(at: url)
         recordedVideoURL = nil
+        cachedProcessedAudioURL = nil
+        cachedAudioSourceURL = nil
     }
 }

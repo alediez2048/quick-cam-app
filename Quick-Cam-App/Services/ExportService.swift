@@ -3,6 +3,193 @@ import AppKit
 import QuartzCore
 
 class ExportService {
+
+    enum ExportError: LocalizedError {
+        case noVideoTrack
+        case noContentAfterDeletions
+        case trackCreationFailed
+
+        var errorDescription: String? {
+            switch self {
+            case .noVideoTrack: return "No video track found"
+            case .noContentAfterDeletions: return "No video content remaining after deletions"
+            case .trackCreationFailed: return "Failed to create video track"
+            }
+        }
+    }
+
+    struct CompositionResult {
+        let composition: AVMutableComposition
+        let videoComposition: AVMutableVideoComposition
+    }
+
+    private func buildComposition(
+        sourceURL: URL,
+        captions: [TimedCaption],
+        processedAudioURL: URL?,
+        aspectRatio: AspectRatioOption,
+        captionStyle: CaptionStyle,
+        exclusionRanges: [CMTimeRange],
+        includeAnimationTool: Bool = true
+    ) async throws -> CompositionResult {
+        let asset = AVAsset(url: sourceURL)
+        let videoTracks = try await asset.loadTracks(withMediaType: .video)
+        let audioTracks = try await asset.loadTracks(withMediaType: .audio)
+
+        guard let videoTrack = videoTracks.first else {
+            throw ExportError.noVideoTrack
+        }
+
+        let naturalSize = try await videoTrack.load(.naturalSize)
+        let duration = try await asset.load(.duration)
+
+        let composition = AVMutableComposition()
+
+        guard let compositionVideoTrack = composition.addMutableTrack(
+            withMediaType: .video,
+            preferredTrackID: kCMPersistentTrackID_Invalid
+        ) else {
+            throw ExportError.trackCreationFailed
+        }
+
+        let includedRanges = Self.computeIncludedRanges(
+            fullDuration: duration,
+            exclusionRanges: exclusionRanges
+        )
+
+        guard !includedRanges.isEmpty else {
+            throw ExportError.noContentAfterDeletions
+        }
+
+        // Insert included segments into composition
+        var insertionTime = CMTime.zero
+        for range in includedRanges {
+            try compositionVideoTrack.insertTimeRange(range, of: videoTrack, at: insertionTime)
+            insertionTime = insertionTime + range.duration
+        }
+
+        let audioSource: AVAssetTrack?
+        let audioAsset: AVAsset?
+        if let processedAudioURL = processedAudioURL {
+            let processed = AVURLAsset(url: processedAudioURL)
+            let processedTracks = try await processed.loadTracks(withMediaType: .audio)
+            audioSource = processedTracks.first
+            audioAsset = processed
+        } else {
+            audioSource = audioTracks.first
+            audioAsset = asset
+        }
+
+        if let audioTrackSource = audioSource,
+           let compositionAudioTrack = composition.addMutableTrack(
+            withMediaType: .audio,
+            preferredTrackID: kCMPersistentTrackID_Invalid
+           ) {
+            var audioInsertionTime = CMTime.zero
+            if exclusionRanges.isEmpty {
+                let audioDuration: CMTime
+                if let audioAsset = audioAsset {
+                    audioDuration = try await audioAsset.load(.duration)
+                } else {
+                    audioDuration = duration
+                }
+                let audioRange = CMTimeRange(start: .zero, duration: min(duration, audioDuration))
+                try compositionAudioTrack.insertTimeRange(audioRange, of: audioTrackSource, at: .zero)
+            } else {
+                for range in includedRanges {
+                    try compositionAudioTrack.insertTimeRange(range, of: audioTrackSource, at: audioInsertionTime)
+                    audioInsertionTime = audioInsertionTime + range.duration
+                }
+            }
+        }
+
+        let compositionDuration = insertionTime
+
+        let sourceWidth = naturalSize.width
+        let sourceHeight = naturalSize.height
+        let outputWidth = aspectRatio.outputSize.width
+        let outputHeight = aspectRatio.outputSize.height
+
+        let scaleX = outputWidth / sourceWidth
+        let scaleY = outputHeight / sourceHeight
+        let scale = max(scaleX, scaleY)
+        let scaledWidth = sourceWidth * scale
+        let scaledHeight = sourceHeight * scale
+        let translateX = -(scaledWidth - outputWidth) / 2.0
+        let translateY = -(scaledHeight - outputHeight) / 2.0
+
+        var transform = CGAffineTransform.identity
+        transform = transform.scaledBy(x: scale, y: scale)
+        transform = transform.translatedBy(x: translateX / scale, y: translateY / scale)
+
+        let videoComposition = AVMutableVideoComposition()
+        videoComposition.renderSize = CGSize(width: outputWidth, height: outputHeight)
+        videoComposition.frameDuration = CMTime(value: 1, timescale: 30)
+
+        let instruction = AVMutableVideoCompositionInstruction()
+        instruction.timeRange = CMTimeRange(start: .zero, duration: compositionDuration)
+
+        let layerInstruction = AVMutableVideoCompositionLayerInstruction(assetTrack: compositionVideoTrack)
+        layerInstruction.setTransform(transform, at: .zero)
+
+        instruction.layerInstructions = [layerInstruction]
+        videoComposition.instructions = [instruction]
+
+        let adjustedCaptions = exclusionRanges.isEmpty
+            ? captions
+            : Self.adjustCaptions(captions, excludedRanges: exclusionRanges)
+
+        if includeAnimationTool && !adjustedCaptions.isEmpty {
+            let videoLayer = CALayer()
+            videoLayer.frame = CGRect(x: 0, y: 0, width: outputWidth, height: outputHeight)
+
+            let parentLayer = CALayer()
+            parentLayer.frame = videoLayer.frame
+            parentLayer.addSublayer(videoLayer)
+
+            let totalDuration = CMTimeGetSeconds(compositionDuration)
+            let engine = CaptionStyleEngine()
+            let captionLayers = engine.buildCaptionLayers(
+                captions: adjustedCaptions,
+                style: captionStyle,
+                videoSize: CGSize(width: outputWidth, height: outputHeight),
+                totalDuration: totalDuration
+            )
+            for layer in captionLayers {
+                parentLayer.addSublayer(layer)
+            }
+
+            videoComposition.animationTool = AVVideoCompositionCoreAnimationTool(
+                postProcessingAsVideoLayer: videoLayer,
+                in: parentLayer
+            )
+        }
+
+        return CompositionResult(composition: composition, videoComposition: videoComposition)
+    }
+
+    func buildPreviewPlayerItem(
+        sourceURL: URL,
+        captions: [TimedCaption],
+        processedAudioURL: URL?,
+        aspectRatio: AspectRatioOption,
+        captionStyle: CaptionStyle,
+        exclusionRanges: [CMTimeRange]
+    ) async throws -> AVPlayerItem {
+        let result = try await buildComposition(
+            sourceURL: sourceURL,
+            captions: captions,
+            processedAudioURL: processedAudioURL,
+            aspectRatio: aspectRatio,
+            captionStyle: captionStyle,
+            exclusionRanges: exclusionRanges,
+            includeAnimationTool: false
+        )
+        let playerItem = AVPlayerItem(asset: result.composition)
+        playerItem.videoComposition = result.videoComposition
+        return playerItem
+    }
+
     func exportToDownloads(
         sourceURL: URL,
         title: String,
@@ -33,154 +220,19 @@ class ExportService {
 
         try? FileManager.default.removeItem(at: destinationURL)
 
-        let asset = AVAsset(url: sourceURL)
-
         Task {
             do {
-                let videoTracks = try await asset.loadTracks(withMediaType: .video)
-                let audioTracks = try await asset.loadTracks(withMediaType: .audio)
-
-                guard let videoTrack = videoTracks.first else {
-                    await MainActor.run {
-                        completion(false, "No video track found")
-                    }
-                    return
-                }
-
-                let naturalSize = try await videoTrack.load(.naturalSize)
-                let duration = try await asset.load(.duration)
-
-                let composition = AVMutableComposition()
-
-                guard let compositionVideoTrack = composition.addMutableTrack(
-                    withMediaType: .video,
-                    preferredTrackID: kCMPersistentTrackID_Invalid
-                ) else {
-                    await MainActor.run {
-                        completion(false, "Failed to create video track")
-                    }
-                    return
-                }
-
-                let includedRanges = Self.computeIncludedRanges(
-                    fullDuration: duration,
+                let result = try await buildComposition(
+                    sourceURL: sourceURL,
+                    captions: captions,
+                    processedAudioURL: processedAudioURL,
+                    aspectRatio: aspectRatio,
+                    captionStyle: captionStyle,
                     exclusionRanges: exclusionRanges
                 )
 
-                guard !includedRanges.isEmpty else {
-                    await MainActor.run {
-                        completion(false, "No video content remaining after deletions")
-                    }
-                    return
-                }
-
-                // Insert included segments into composition
-                var insertionTime = CMTime.zero
-                for range in includedRanges {
-                    try compositionVideoTrack.insertTimeRange(range, of: videoTrack, at: insertionTime)
-                    insertionTime = insertionTime + range.duration
-                }
-
-                let audioSource: AVAssetTrack?
-                let audioAsset: AVAsset?
-                if let processedAudioURL = processedAudioURL {
-                    let processed = AVURLAsset(url: processedAudioURL)
-                    let processedTracks = try await processed.loadTracks(withMediaType: .audio)
-                    audioSource = processedTracks.first
-                    audioAsset = processed
-                } else {
-                    audioSource = audioTracks.first
-                    audioAsset = asset
-                }
-
-                if let audioTrackSource = audioSource,
-                   let compositionAudioTrack = composition.addMutableTrack(
-                    withMediaType: .audio,
-                    preferredTrackID: kCMPersistentTrackID_Invalid
-                   ) {
-                    var audioInsertionTime = CMTime.zero
-                    if exclusionRanges.isEmpty {
-                        // No exclusions: insert full range
-                        let audioDuration: CMTime
-                        if let audioAsset = audioAsset {
-                            audioDuration = try await audioAsset.load(.duration)
-                        } else {
-                            audioDuration = duration
-                        }
-                        let audioRange = CMTimeRange(start: .zero, duration: min(duration, audioDuration))
-                        try compositionAudioTrack.insertTimeRange(audioRange, of: audioTrackSource, at: .zero)
-                    } else {
-                        for range in includedRanges {
-                            try compositionAudioTrack.insertTimeRange(range, of: audioTrackSource, at: audioInsertionTime)
-                            audioInsertionTime = audioInsertionTime + range.duration
-                        }
-                    }
-                }
-
-                let compositionDuration = insertionTime
-
-                let sourceWidth = naturalSize.width
-                let sourceHeight = naturalSize.height
-                let outputWidth = aspectRatio.outputSize.width
-                let outputHeight = aspectRatio.outputSize.height
-
-                let scaleX = outputWidth / sourceWidth
-                let scaleY = outputHeight / sourceHeight
-                let scale = max(scaleX, scaleY)
-                let scaledWidth = sourceWidth * scale
-                let scaledHeight = sourceHeight * scale
-                let translateX = -(scaledWidth - outputWidth) / 2.0
-                let translateY = -(scaledHeight - outputHeight) / 2.0
-
-                var transform = CGAffineTransform.identity
-                transform = transform.scaledBy(x: scale, y: scale)
-                transform = transform.translatedBy(x: translateX / scale, y: translateY / scale)
-
-                let videoComposition = AVMutableVideoComposition()
-                videoComposition.renderSize = CGSize(width: outputWidth, height: outputHeight)
-                videoComposition.frameDuration = CMTime(value: 1, timescale: 30)
-
-                let instruction = AVMutableVideoCompositionInstruction()
-                instruction.timeRange = CMTimeRange(start: .zero, duration: compositionDuration)
-
-                let layerInstruction = AVMutableVideoCompositionLayerInstruction(assetTrack: compositionVideoTrack)
-                layerInstruction.setTransform(transform, at: .zero)
-
-                instruction.layerInstructions = [layerInstruction]
-                videoComposition.instructions = [instruction]
-
-                let adjustedCaptions = exclusionRanges.isEmpty
-                    ? captions
-                    : Self.adjustCaptions(captions, excludedRanges: exclusionRanges)
-
-                if !adjustedCaptions.isEmpty {
-                    let videoLayer = CALayer()
-                    videoLayer.frame = CGRect(x: 0, y: 0, width: outputWidth, height: outputHeight)
-
-                    let parentLayer = CALayer()
-                    parentLayer.frame = videoLayer.frame
-                    parentLayer.addSublayer(videoLayer)
-
-                    let totalDuration = CMTimeGetSeconds(compositionDuration)
-                    let engine = CaptionStyleEngine()
-                    let captionLayers = engine.buildCaptionLayers(
-                        captions: adjustedCaptions,
-                        style: captionStyle,
-                        videoSize: CGSize(width: outputWidth, height: outputHeight),
-                        totalDuration: totalDuration
-                    )
-                    for layer in captionLayers {
-                        parentLayer.addSublayer(layer)
-                    }
-
-                    videoComposition.animationTool = AVVideoCompositionCoreAnimationTool(
-                        postProcessingAsVideoLayer: videoLayer,
-                        in: parentLayer
-                    )
-                }
-
                 guard let exportSession = AVAssetExportSession(
-                    asset: composition,
+                    asset: result.composition,
                     presetName: AVAssetExportPresetHighestQuality
                 ) else {
                     await MainActor.run {
@@ -191,7 +243,7 @@ class ExportService {
 
                 exportSession.outputURL = destinationURL
                 exportSession.outputFileType = .mov
-                exportSession.videoComposition = videoComposition
+                exportSession.videoComposition = result.videoComposition
 
                 await exportSession.export()
 
