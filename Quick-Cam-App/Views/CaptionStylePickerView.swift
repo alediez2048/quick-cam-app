@@ -47,16 +47,14 @@ struct CaptionStylePickerView: View {
 
                 Divider().background(Color.white.opacity(0.1))
 
-                // Font
+                // Font Family
                 HStack {
                     Text("Font")
                         .foregroundColor(.white)
                     Spacer()
                     Picker("", selection: $selectedStyle.fontName) {
                         ForEach(CaptionFont.allFonts) { font in
-                            Text(font.displayName)
-                                .font(.custom(font.postScriptName, size: 13))
-                                .tag(font.postScriptName)
+                            Text(font.displayName).tag(font.fontName)
                         }
                     }
                     .frame(width: 180)
@@ -124,12 +122,12 @@ struct CaptionStylePickerView: View {
 
                 Divider().background(Color.white.opacity(0.1))
 
-                // Outline
+                // Outline Width
                 HStack {
                     Text("Outline")
                         .foregroundColor(.white)
                     Spacer()
-                    Text(selectedStyle.strokeWidth > 0 ? "\(Int(selectedStyle.strokeWidth))" : "Off")
+                    Text(selectedStyle.strokeWidth > 0 ? "\(Int(selectedStyle.strokeWidth))px" : "Off")
                         .foregroundColor(.gray)
                         .monospacedDigit()
                 }
@@ -137,24 +135,31 @@ struct CaptionStylePickerView: View {
                 .padding(.top, 10)
                 .padding(.bottom, 4)
 
-                HStack(spacing: 8) {
-                    Slider(value: $selectedStyle.strokeWidth, in: 0...8, step: 1)
-                    if selectedStyle.strokeWidth > 0 {
+                Slider(value: $selectedStyle.strokeWidth, in: 0...8, step: 1)
+                    .padding(.horizontal, 12)
+                    .padding(.bottom, selectedStyle.strokeWidth > 0 ? 4 : 10)
+
+                // Outline Color (only when outline is active)
+                if selectedStyle.strokeWidth > 0 {
+                    HStack {
+                        Text("Outline color")
+                            .foregroundColor(.white)
+                        Spacer()
                         ColorPicker("", selection: strokeColorBinding)
                             .labelsHidden()
                     }
+                    .padding(.horizontal, 12)
+                    .padding(.vertical, 10)
                 }
-                .padding(.horizontal, 12)
-                .padding(.bottom, 10)
 
                 Divider().background(Color.white.opacity(0.1))
 
-                // Highlighter
+                // Text Highlighter
                 HStack {
                     Text("Highlighter")
                         .foregroundColor(.white)
                     Spacer()
-                    ColorPicker("", selection: textHighlighterColorBinding, supportsOpacity: true)
+                    ColorPicker("", selection: highlighterColorBinding, supportsOpacity: true)
                         .labelsHidden()
                 }
                 .padding(.horizontal, 12)
@@ -182,9 +187,8 @@ struct CaptionStylePickerView: View {
                         .frame(height: 36)
 
                     Text("Aa")
-                        .font(.custom(preset.fontName, size: 14).bold())
+                        .font(.system(size: 14, weight: .bold))
                         .foregroundColor(Color(nsColor: preset.textColor))
-                        .shadow(color: preset.strokeWidth > 0 ? Color(nsColor: preset.strokeColor).opacity(0.8) : .clear, radius: 1, x: 1, y: 1)
                 }
 
                 Text(preset.styleName)
@@ -233,7 +237,7 @@ struct CaptionStylePickerView: View {
         )
     }
 
-    private var textHighlighterColorBinding: Binding<Color> {
+    private var highlighterColorBinding: Binding<Color> {
         Binding(
             get: { Color(nsColor: selectedStyle.textHighlighterColor) },
             set: { selectedStyle.textHighlighterColor = NSColor($0) }
