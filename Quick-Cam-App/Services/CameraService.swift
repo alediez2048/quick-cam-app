@@ -51,17 +51,19 @@ class CameraService: NSObject, ObservableObject, CameraServiceProtocol {
 
     private let captureSession = AVCaptureSession()
     private let audioDataOutput = AVCaptureAudioDataOutput()
-    private let videoDataOutput = AVCaptureVideoDataOutput()
+    private let movieFileOutput = AVCaptureMovieFileOutput()
     private var currentInput: AVCaptureDeviceInput?
     let sessionQueue = DispatchQueue(label: "camera.session.queue")
     private let audioMeteringQueue = DispatchQueue(label: "camera.audio.metering")
-    private let videoDataQueue = DispatchQueue(label: "camera.video.data")
     private var isConfiguring = false
     private var lastAudioLevelUpdate = Date.distantPast
 
+    /// Continuation used to bridge AVCaptureMovieFileOutput's delegate callback
+    /// into async/await when stopping camera recording.
+    private var movieOutputCompletion: ((URL?) -> Void)?
+
     let screenCaptureService = ScreenCaptureService()
     private let screenRecordingService = ScreenRecordingService()
-    private let cameraRecordingService = CameraRecordingService()
     var pendingScreenFilter: SCContentFilter?
 
     var session: AVCaptureSession {
@@ -240,15 +242,13 @@ class CameraService: NSObject, ObservableObject, CameraServiceProtocol {
             }
         }
 
-        // Use the camera's native pixel format (420v YCbCr) — avoids double
-        // conversion (native→BGRA→YUV) that adds latency and drops frames.
-        videoDataOutput.videoSettings = [:]
-        videoDataOutput.alwaysDiscardsLateVideoFrames = true
-        if captureSession.canAddOutput(videoDataOutput) {
-            captureSession.addOutput(videoDataOutput)
-            videoDataOutput.setSampleBufferDelegate(self, queue: videoDataQueue)
+        // Movie file output handles A/V sync automatically — replaces
+        // the manual AVAssetWriter approach that had persistent desync.
+        if captureSession.canAddOutput(movieFileOutput) {
+            captureSession.addOutput(movieFileOutput)
         }
 
+        // Audio data output stays for real-time metering only
         if captureSession.canAddOutput(audioDataOutput) {
             captureSession.addOutput(audioDataOutput)
             audioDataOutput.setSampleBufferDelegate(self, queue: audioMeteringQueue)
@@ -306,6 +306,25 @@ class CameraService: NSObject, ObservableObject, CameraServiceProtocol {
         }
     }
 
+    private func startCameraMovieRecording() {
+        // Safety: ensure movieFileOutput is connected to the session
+        guard captureSession.outputs.contains(movieFileOutput) else {
+            print("[DEBUG-SVC] movieFileOutput not in session — cannot record")
+            DispatchQueue.main.async {
+                self.error = "Camera recording not available"
+                self.isRecording = false
+            }
+            return
+        }
+
+        let tempDir = FileManager.default.temporaryDirectory
+        let fileName = "QuickCam_Camera_\(Date().timeIntervalSince1970).mov"
+        let fileURL = tempDir.appendingPathComponent(fileName)
+        try? FileManager.default.removeItem(at: fileURL)
+        movieFileOutput.startRecording(to: fileURL, recordingDelegate: self)
+        print("[DEBUG-SVC] movieFileOutput.startRecording → \(fileName)")
+    }
+
     func startRecording() {
         guard !isRecording else { return }
         isRecording = true
@@ -315,7 +334,6 @@ class CameraService: NSObject, ObservableObject, CameraServiceProtocol {
         pendingScreenFilter = nil
 
         if mode == .screenOnly {
-            // Screen-only: just start screen capture
             guard let filter = filter else {
                 DispatchQueue.main.async {
                     self.error = "No screen content selected"
@@ -338,7 +356,6 @@ class CameraService: NSObject, ObservableObject, CameraServiceProtocol {
                 }
             }
         } else if mode == .screenAndCamera {
-            // Screen + Camera: use AVAssetWriter for camera (bypasses movieOutput issues)
             guard let filter = filter else {
                 DispatchQueue.main.async {
                     self.error = "No screen content selected"
@@ -347,9 +364,8 @@ class CameraService: NSObject, ObservableObject, CameraServiceProtocol {
                 return
             }
 
-            // Start camera recording (writer initializes lazily from first frame)
-            cameraRecordingService.startRecording()
-            print("[DEBUG-SVC] CameraRecordingService prepared (screenAndCamera)")
+            // Start camera via movieFileOutput (handles A/V sync automatically)
+            startCameraMovieRecording()
 
             // Start screen capture
             Task {
@@ -367,9 +383,22 @@ class CameraService: NSObject, ObservableObject, CameraServiceProtocol {
                 }
             }
         } else {
-            // Camera-only mode — use AVAssetWriter (writer initializes lazily from first frame)
-            cameraRecordingService.startRecording()
-            print("[DEBUG-SVC] CameraRecordingService prepared (cameraOnly)")
+            // Camera-only mode — movieFileOutput handles A/V sync automatically
+            startCameraMovieRecording()
+        }
+    }
+
+    /// Stops the movie file output and returns the recorded URL via async/await.
+    private func stopCameraMovieRecording() async -> URL? {
+        guard movieFileOutput.isRecording else {
+            print("[DEBUG-SVC] movieFileOutput not recording — nothing to stop")
+            return nil
+        }
+        return await withCheckedContinuation { continuation in
+            self.movieOutputCompletion = { url in
+                continuation.resume(returning: url)
+            }
+            self.movieFileOutput.stopRecording()
         }
     }
 
@@ -380,11 +409,10 @@ class CameraService: NSObject, ObservableObject, CameraServiceProtocol {
         let mode = recordingMode
 
         if mode == .screenAndCamera {
-            // Stop both screen and camera (AVAssetWriter-based)
             Task {
                 let screenURL = await screenRecordingService.stopRecording()
                 await screenCaptureService.stopCapture()
-                let cameraURL = await cameraRecordingService.stopRecording()
+                let cameraURL = await stopCameraMovieRecording()
                 print("[DEBUG-SVC] stopRecording screenAndCamera: screenURL=\(screenURL?.lastPathComponent ?? "nil"), cameraURL=\(cameraURL?.lastPathComponent ?? "nil")")
 
                 await MainActor.run {
@@ -417,9 +445,9 @@ class CameraService: NSObject, ObservableObject, CameraServiceProtocol {
                 }
             }
         } else {
-            // Camera only — uses CameraRecordingService
+            // Camera only — movieFileOutput handles sync
             Task {
-                let cameraURL = await cameraRecordingService.stopRecording()
+                let cameraURL = await stopCameraMovieRecording()
                 await MainActor.run {
                     self.isRecording = false
                     self.isPaused = false
@@ -437,37 +465,50 @@ class CameraService: NSObject, ObservableObject, CameraServiceProtocol {
     func pauseRecording() {
         guard isRecording, !isPaused else { return }
         isPaused = true
-        cameraRecordingService.isPaused = true
+        if recordingMode != .screenOnly {
+            movieFileOutput.pauseRecording()
+        }
     }
 
     func resumeRecording() {
         guard isRecording, isPaused else { return }
         isPaused = false
-        cameraRecordingService.isPaused = false
+        if recordingMode != .screenOnly {
+            movieFileOutput.resumeRecording()
+        }
     }
 }
 
-extension CameraService: AVCaptureVideoDataOutputSampleBufferDelegate, AVCaptureAudioDataOutputSampleBufferDelegate {
-    func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
-        if output === videoDataOutput {
-            handleVideoOutput(sampleBuffer)
+// MARK: - AVCaptureFileOutputRecordingDelegate (movieFileOutput)
+
+extension CameraService: AVCaptureFileOutputRecordingDelegate {
+    func fileOutput(_ output: AVCaptureFileOutput, didFinishRecordingTo outputFileURL: URL,
+                    from connections: [AVCaptureConnection], error: Error?) {
+        // AVCaptureMovieFileOutput reports a "successful stop" as an error with
+        // AVErrorRecordingSuccessfullyFinishedKey = true. Check for that.
+        var success = (error == nil)
+        if let err = error as NSError? {
+            if err.userInfo[AVErrorRecordingSuccessfullyFinishedKey] as? Bool == true {
+                success = true
+            }
+        }
+
+        if success {
+            print("[DEBUG-SVC] movieFileOutput finished: \(outputFileURL.lastPathComponent)")
+            movieOutputCompletion?(outputFileURL)
         } else {
-            handleAudioOutput(sampleBuffer)
+            print("[DEBUG-SVC] movieFileOutput error: \(error?.localizedDescription ?? "unknown")")
+            movieOutputCompletion?(nil)
         }
+        movieOutputCompletion = nil
     }
+}
 
-    private func handleVideoOutput(_ sampleBuffer: CMSampleBuffer) {
-        guard isRecording, recordingMode != .screenOnly else { return }
-        cameraRecordingService.appendVideoSampleBuffer(sampleBuffer)
-    }
+// MARK: - Audio metering via AVCaptureAudioDataOutput
 
-    private func handleAudioOutput(_ sampleBuffer: CMSampleBuffer) {
-        // Forward audio to camera writer when recording with camera
-        if isRecording, recordingMode != .screenOnly {
-            cameraRecordingService.appendAudioSampleBuffer(sampleBuffer)
-        }
-
-        // Audio metering
+extension CameraService: AVCaptureAudioDataOutputSampleBufferDelegate {
+    func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
+        // Audio metering only — recording is handled by movieFileOutput
         guard isRecording else { return }
 
         let now = Date()

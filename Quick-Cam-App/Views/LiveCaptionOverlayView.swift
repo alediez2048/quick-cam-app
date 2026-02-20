@@ -9,6 +9,7 @@ struct LiveCaptionOverlayView: View {
 
     @State private var currentTime: Double = 0
     @State private var timeObserver: Any?
+    @State private var observedPlayer: AVPlayer?
 
     private var activeCaption: TimedCaption? {
         captions.first { caption in
@@ -56,15 +57,18 @@ struct LiveCaptionOverlayView: View {
             }
         }
         .onAppear {
+            // Store the player that owns this observer so we remove from the correct instance
             let interval = CMTime(seconds: 0.05, preferredTimescale: 600)
+            observedPlayer = player
             timeObserver = player.addPeriodicTimeObserver(forInterval: interval, queue: .main) { time in
                 currentTime = CMTimeGetSeconds(time)
             }
         }
         .onDisappear {
             if let observer = timeObserver {
-                player.removeTimeObserver(observer)
+                observedPlayer?.removeTimeObserver(observer)
                 timeObserver = nil
+                observedPlayer = nil
             }
         }
     }
