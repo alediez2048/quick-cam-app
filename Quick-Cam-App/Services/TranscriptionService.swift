@@ -1,5 +1,6 @@
 import Speech
 import CoreMedia
+import AVFoundation
 
 class TranscriptionService {
 
@@ -30,7 +31,7 @@ class TranscriptionService {
         }
     }
 
-    func transcribeAudio(from videoURL: URL, locale: Locale = Locale(identifier: "en-US")) async -> [TimedCaption] {
+    func transcribeAudio(from videoURL: URL, locale: Locale = Locale(identifier: "en-US")) async throws -> [TimedCaption] {
         let speechRecognizer = SFSpeechRecognizer(locale: locale)
         guard let recognizer = speechRecognizer, recognizer.isAvailable else {
             return []
@@ -55,6 +56,12 @@ class TranscriptionService {
         @unknown default:
             return []
         }
+
+        // Verify the file has audio tracks — SFSpeechURLRecognitionRequest crashes
+        // if the asset has no audio (e.g. screen-only recordings from ScreenCaptureKit).
+        let asset = AVURLAsset(url: videoURL)
+        let audioTracks = try await asset.loadTracks(withMediaType: .audio)
+        guard !audioTracks.isEmpty else { return [] }
 
         // Perform transcription — authorization is confirmed
         return await withCheckedContinuation { continuation in

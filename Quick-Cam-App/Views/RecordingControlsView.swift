@@ -5,28 +5,89 @@ struct RecordingControlsView: View {
     @ObservedObject var cameraViewModel: CameraViewModel
     @Binding var recordingDuration: TimeInterval
 
+    private var canRecord: Bool {
+        if cameraViewModel.recordingMode == .screenOnly {
+            return true
+        } else {
+            return cameraViewModel.isReady && cameraViewModel.isSessionRunning
+        }
+    }
+
     var body: some View {
-        VStack(spacing: 0) {
-            // Camera picker at top
-            HStack {
-                if cameraViewModel.availableCameras.count > 1 {
-                    Picker("Camera", selection: Binding(
-                        get: { cameraViewModel.selectedCamera },
-                        set: { newCamera in
-                            if let camera = newCamera {
-                                cameraViewModel.switchCamera(to: camera)
-                            }
-                        }
-                    )) {
-                        ForEach(cameraViewModel.availableCameras, id: \.uniqueID) { camera in
-                            Text(camera.localizedName).tag(camera as AVCaptureDevice?)
-                        }
-                    }
-                    .pickerStyle(.menu)
-                    .frame(maxWidth: 250)
-                    .disabled(cameraViewModel.isRecording || cameraViewModel.isCountingDown)
+        ZStack(alignment: .bottom) {
+            // Main content
+            VStack(spacing: 0) {
+                // Top controls bar
+                topControlsBar
+                    .padding()
+
+                // Layout picker for screenAndCamera mode
+                if cameraViewModel.recordingMode == .screenAndCamera && !cameraViewModel.isRecording {
+                    layoutPicker
                 }
 
+                // Preview area
+                previewArea
+                    .allowsHitTesting(false)
+
+                if cameraViewModel.isRecording {
+                    AudioLevelMeterView(audioLevel: cameraViewModel.audioLevel)
+                        .padding(.horizontal)
+                        .padding(.top, 8)
+                }
+
+                Spacer()
+
+                // Invisible spacer to reserve room for the floating buttons
+                Color.clear.frame(height: 120)
+            }
+
+            // Floating buttons — always on top, always clickable
+            recordingButtons
+                .padding(.bottom, 40)
+        }
+        .onKeyPress(.escape) {
+            print("[DEBUG-KEY] Escape pressed. isRecording=\(cameraViewModel.isRecording), isCountingDown=\(cameraViewModel.isCountingDown)")
+            if cameraViewModel.isRecording || cameraViewModel.isCountingDown {
+                cameraViewModel.stopRecording()
+                return .handled
+            }
+            return .ignored
+        }
+    }
+
+    // MARK: - Top Controls
+
+    private var topControlsBar: some View {
+        HStack {
+            Picker("Mode", selection: $cameraViewModel.recordingMode) {
+                ForEach(RecordingMode.allCases) { mode in
+                    Label(mode.label, systemImage: mode.systemImage).tag(mode)
+                }
+            }
+            .pickerStyle(.segmented)
+            .frame(maxWidth: 240)
+            .disabled(cameraViewModel.isRecording || cameraViewModel.isCountingDown)
+
+            if cameraViewModel.recordingMode.needsCamera && cameraViewModel.availableCameras.count > 1 {
+                Picker("Camera", selection: Binding(
+                    get: { cameraViewModel.selectedCamera },
+                    set: { newCamera in
+                        if let camera = newCamera {
+                            cameraViewModel.switchCamera(to: camera)
+                        }
+                    }
+                )) {
+                    ForEach(cameraViewModel.availableCameras, id: \.uniqueID) { camera in
+                        Text(camera.localizedName).tag(camera as AVCaptureDevice?)
+                    }
+                }
+                .pickerStyle(.menu)
+                .frame(maxWidth: 200)
+                .disabled(cameraViewModel.isRecording || cameraViewModel.isCountingDown)
+            }
+
+            if cameraViewModel.recordingMode == .cameraOnly {
                 Picker("Ratio", selection: $cameraViewModel.selectedAspectRatio) {
                     ForEach(AspectRatioOption.allCases) { option in
                         Text(option.label).tag(option)
@@ -35,16 +96,18 @@ struct RecordingControlsView: View {
                 .pickerStyle(.menu)
                 .frame(maxWidth: 100)
                 .disabled(cameraViewModel.isRecording || cameraViewModel.isCountingDown)
+            }
 
-                Picker("Resolution", selection: $cameraViewModel.selectedResolution) {
-                    ForEach(ResolutionOption.allCases) { option in
-                        Text(option.label).tag(option)
-                    }
+            Picker("Resolution", selection: $cameraViewModel.selectedResolution) {
+                ForEach(ResolutionOption.allCases) { option in
+                    Text(option.label).tag(option)
                 }
-                .pickerStyle(.menu)
-                .frame(maxWidth: 100)
-                .disabled(cameraViewModel.isRecording || cameraViewModel.isCountingDown)
+            }
+            .pickerStyle(.menu)
+            .frame(maxWidth: 100)
+            .disabled(cameraViewModel.isRecording || cameraViewModel.isCountingDown)
 
+            if cameraViewModel.recordingMode.needsCamera {
                 Button(action: {
                     cameraViewModel.isMirrored.toggle()
                 }) {
@@ -62,32 +125,92 @@ struct RecordingControlsView: View {
                 }
                 .buttonStyle(.plain)
                 .help("Rule of thirds grid")
+            }
 
-                Spacer()
+            Spacer()
 
-                if cameraViewModel.isRecording {
-                    VStack(spacing: 4) {
-                        HStack(spacing: 6) {
-                            Circle()
-                                .fill(cameraViewModel.isPaused ? .yellow : .red)
-                                .frame(width: 10, height: 10)
-                            Text(cameraViewModel.isPaused ? "PAUSED" : "REC")
-                                .foregroundColor(cameraViewModel.isPaused ? .yellow : .red)
-                                .fontWeight(.bold)
-                        }
-                        Text(formatDuration(recordingDuration))
-                            .foregroundColor(.white)
-                            .font(.system(size: 14, weight: .medium, design: .monospaced))
+            if cameraViewModel.isRecording {
+                VStack(spacing: 4) {
+                    HStack(spacing: 6) {
+                        Circle()
+                            .fill(cameraViewModel.isPaused ? .yellow : .red)
+                            .frame(width: 10, height: 10)
+                        Text(cameraViewModel.isPaused ? "PAUSED" : "REC")
+                            .foregroundColor(cameraViewModel.isPaused ? .yellow : .red)
+                            .fontWeight(.bold)
                     }
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 6)
-                    .background(.black.opacity(0.6))
-                    .cornerRadius(6)
+                    Text(formatDuration(recordingDuration))
+                        .foregroundColor(.white)
+                        .font(.system(size: 14, weight: .medium, design: .monospaced))
+                }
+                .padding(.horizontal, 12)
+                .padding(.vertical, 6)
+                .background(.black.opacity(0.6))
+                .cornerRadius(6)
+            }
+        }
+    }
+
+    // MARK: - Layout Picker
+
+    private var layoutPicker: some View {
+        HStack(spacing: 12) {
+            Picker("Layout", selection: $cameraViewModel.selectedLayout) {
+                ForEach(ScreenCameraLayout.allCases) { layout in
+                    Label(layout.label, systemImage: layout.systemImage).tag(layout)
                 }
             }
-            .padding()
+            .pickerStyle(.segmented)
+            .frame(maxWidth: 350)
 
-            // Camera preview
+            if cameraViewModel.selectedLayout.isBubbleLayout {
+                CameraBubblePositionPicker(selectedPosition: $cameraViewModel.bubblePosition)
+            }
+        }
+        .padding(.horizontal)
+        .padding(.bottom, 8)
+    }
+
+    // MARK: - Preview Area
+
+    @ViewBuilder
+    private var previewArea: some View {
+        if cameraViewModel.recordingMode == .screenAndCamera && cameraViewModel.isRecording {
+            CompositePreviewView(
+                cameraViewModel: cameraViewModel,
+                screenImage: cameraViewModel.screenFrame,
+                layout: cameraViewModel.selectedLayout,
+                bubblePosition: cameraViewModel.bubblePosition
+            )
+            .padding(.horizontal)
+        } else if cameraViewModel.recordingMode == .screenOnly {
+            if cameraViewModel.isRecording, let screenImage = cameraViewModel.screenFrame {
+                Image(decorative: screenImage, scale: 1.0)
+                    .resizable()
+                    .aspectRatio(contentMode: .fit)
+                    .cornerRadius(12)
+                    .padding(.horizontal)
+            } else {
+                ZStack {
+                    Rectangle()
+                        .fill(Color.gray.opacity(0.2))
+                        .aspectRatio(16.0 / 9.0, contentMode: .fit)
+                        .cornerRadius(12)
+                    VStack(spacing: 12) {
+                        Image(systemName: "display")
+                            .font(.system(size: 40))
+                            .foregroundColor(.gray)
+                        Text("Screen recording mode")
+                            .font(.caption)
+                            .foregroundColor(.gray)
+                        Text("Your entire screen will be captured")
+                            .font(.caption2)
+                            .foregroundColor(.gray.opacity(0.7))
+                    }
+                }
+                .padding(.horizontal)
+            }
+        } else {
             CameraPreviewView(cameraViewModel: cameraViewModel)
                 .aspectRatio(cameraViewModel.selectedAspectRatio.ratio, contentMode: .fit)
                 .cornerRadius(12)
@@ -132,68 +255,63 @@ struct RecordingControlsView: View {
                         }
                     }
                 )
+        }
+    }
 
-            if cameraViewModel.isRecording {
-                AudioLevelMeterView(audioLevel: cameraViewModel.audioLevel)
-                    .padding(.horizontal)
-                    .padding(.top, 8)
-            }
+    // MARK: - Recording Buttons
 
-            Spacer()
-
-            // Record / Pause / Stop buttons
-            HStack(spacing: 32) {
-                if cameraViewModel.isRecording {
-                    // Pause / Resume button
-                    Button(action: {
-                        if cameraViewModel.isPaused {
-                            cameraViewModel.resumeRecording()
-                        } else {
-                            cameraViewModel.pauseRecording()
-                        }
-                    }) {
-                        ZStack {
-                            Circle()
-                                .fill(.white.opacity(0.15))
-                                .frame(width: 56, height: 56)
-                            Image(systemName: cameraViewModel.isPaused ? "play.fill" : "pause.fill")
-                                .font(.system(size: 24))
-                                .foregroundColor(.white)
-                        }
-                    }
-                    .buttonStyle(.plain)
-                }
-
-                // Record / Stop button
+    private var recordingButtons: some View {
+        HStack(spacing: 32) {
+            if cameraViewModel.isRecording && cameraViewModel.recordingMode.needsCamera {
                 Button(action: {
-                    if cameraViewModel.isRecording || cameraViewModel.isCountingDown {
-                        cameraViewModel.stopRecording()
+                    if cameraViewModel.isPaused {
+                        cameraViewModel.resumeRecording()
                     } else {
-                        cameraViewModel.startRecording()
+                        cameraViewModel.pauseRecording()
                     }
                 }) {
                     ZStack {
                         Circle()
-                            .stroke(lineWidth: 4)
+                            .fill(.white.opacity(0.15))
+                            .frame(width: 56, height: 56)
+                        Image(systemName: cameraViewModel.isPaused ? "play.fill" : "pause.fill")
+                            .font(.system(size: 24))
                             .foregroundColor(.white)
-                            .frame(width: 72, height: 72)
-
-                        if cameraViewModel.isRecording || cameraViewModel.isCountingDown {
-                            RoundedRectangle(cornerRadius: 4)
-                                .fill(.red)
-                                .frame(width: 28, height: 28)
-                        } else {
-                            Circle()
-                                .fill(.red)
-                                .frame(width: 56, height: 56)
-                        }
                     }
+                    .contentShape(Circle())
                 }
                 .buttonStyle(.plain)
-                .disabled(!cameraViewModel.isReady || !cameraViewModel.isSessionRunning)
-                .opacity(cameraViewModel.isReady && cameraViewModel.isSessionRunning ? 1.0 : 0.5)
             }
-            .padding(.bottom, 40)
+
+            Button(action: {
+                print("[DEBUG-BUTTON] Stop/Record button CLICKED. isRecording=\(cameraViewModel.isRecording), isCountingDown=\(cameraViewModel.isCountingDown)")
+                if cameraViewModel.isRecording || cameraViewModel.isCountingDown {
+                    cameraViewModel.stopRecording()
+                } else {
+                    cameraViewModel.startRecording()
+                }
+            }) {
+                ZStack {
+                    Circle()
+                        .stroke(lineWidth: 4)
+                        .foregroundColor(.white)
+                        .frame(width: 72, height: 72)
+
+                    if cameraViewModel.isRecording || cameraViewModel.isCountingDown {
+                        RoundedRectangle(cornerRadius: 4)
+                            .fill(.red)
+                            .frame(width: 28, height: 28)
+                    } else {
+                        Circle()
+                            .fill(.red)
+                            .frame(width: 56, height: 56)
+                    }
+                }
+                .contentShape(Circle())
+            }
+            .buttonStyle(.plain)
+            .disabled(!canRecord && !cameraViewModel.isRecording && !cameraViewModel.isCountingDown)
+            .opacity((canRecord || cameraViewModel.isRecording || cameraViewModel.isCountingDown) ? 1.0 : 0.5)
         }
     }
 
@@ -209,7 +327,6 @@ private struct AudioLevelMeterView: View {
     let audioLevel: Float
 
     private var normalizedLevel: CGFloat {
-        // Map dBFS range -60...0 to 0...1
         let clamped = min(max(CGFloat(audioLevel), -60), 0)
         return (clamped + 60) / 60
     }
@@ -247,13 +364,11 @@ private struct RuleOfThirdsGridView: View {
                 let w = geometry.size.width
                 let h = geometry.size.height
 
-                // Vertical lines at 1/3 and 2/3
                 path.move(to: CGPoint(x: w / 3, y: 0))
                 path.addLine(to: CGPoint(x: w / 3, y: h))
                 path.move(to: CGPoint(x: 2 * w / 3, y: 0))
                 path.addLine(to: CGPoint(x: 2 * w / 3, y: h))
 
-                // Horizontal lines at 1/3 and 2/3
                 path.move(to: CGPoint(x: 0, y: h / 3))
                 path.addLine(to: CGPoint(x: w, y: h / 3))
                 path.move(to: CGPoint(x: 0, y: 2 * h / 3))

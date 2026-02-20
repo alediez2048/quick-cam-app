@@ -34,15 +34,19 @@ struct ContentView: View {
                 } else if showPreview, let videoURL = cameraViewModel.recordedVideoURL {
                     PreviewView(
                         videoURL: videoURL,
-                        aspectRatio: cameraViewModel.selectedAspectRatio,
+                        aspectRatio: cameraViewModel.recordingMode == .cameraOnly ? cameraViewModel.selectedAspectRatio : .horizontal,
                         isExporting: cameraViewModel.isExporting,
                         isTranscribing: cameraViewModel.isTranscribing,
                         isProcessingAudio: cameraViewModel.isProcessingAudio,
                         transcriptionProgress: cameraViewModel.transcriptionProgress,
                         isGeneratingPreview: cameraViewModel.isGeneratingPreview,
                         previewPlayerItem: cameraViewModel.previewPlayerItem,
+                        recordingMode: cameraViewModel.recordingMode,
+                        screenRecordedVideoURL: cameraViewModel.screenRecordedVideoURL,
+                        selectedLayout: cameraViewModel.selectedLayout,
+                        bubblePosition: cameraViewModel.bubblePosition,
                         onSave: { title, enableCaptions, enhanceAudio, captionStyle, language, preTranscribedCaptions, exclusionRanges in
-                            cameraViewModel.exportToDownloads(title: title, enableCaptions: enableCaptions, enhanceAudio: enhanceAudio, aspectRatio: cameraViewModel.selectedAspectRatio, captionStyle: captionStyle, language: language, preTranscribedCaptions: preTranscribedCaptions, exclusionRanges: exclusionRanges) { success, path in
+                            cameraViewModel.exportToDownloads(title: title, enableCaptions: enableCaptions, enhanceAudio: enhanceAudio, aspectRatio: cameraViewModel.recordingMode == .cameraOnly ? cameraViewModel.selectedAspectRatio : .horizontal, captionStyle: captionStyle, language: language, preTranscribedCaptions: preTranscribedCaptions, exclusionRanges: exclusionRanges) { success, path in
                                 guard success else { return }
                                 DispatchQueue.main.async {
                                     showPreview = false

@@ -1,6 +1,7 @@
 import AVFoundation
 import AppKit
 import Accelerate
+import ScreenCaptureKit
 
 protocol CameraServiceProtocol: AnyObject {
     var availableCameras: [AVCaptureDevice] { get }
@@ -26,6 +27,8 @@ protocol CameraServiceProtocol: AnyObject {
     var audioLevel: Float { get }
 
     var selectedResolution: ResolutionOption { get set }
+    var recordingMode: RecordingMode { get set }
+    var screenRecordedVideoURL: URL? { get set }
 
     func pauseRecording()
     func resumeRecording()
@@ -43,15 +46,23 @@ class CameraService: NSObject, ObservableObject, CameraServiceProtocol {
     @Published var isPaused = false
     @Published var audioLevel: Float = -160.0
     @Published var selectedResolution: ResolutionOption = .hd1080p
+    @Published var recordingMode: RecordingMode = .cameraOnly
+    @Published var screenRecordedVideoURL: URL?
 
     private let captureSession = AVCaptureSession()
-    private var movieOutput = AVCaptureMovieFileOutput()
     private let audioDataOutput = AVCaptureAudioDataOutput()
+    private let videoDataOutput = AVCaptureVideoDataOutput()
     private var currentInput: AVCaptureDeviceInput?
     let sessionQueue = DispatchQueue(label: "camera.session.queue")
     private let audioMeteringQueue = DispatchQueue(label: "camera.audio.metering")
+    private let videoDataQueue = DispatchQueue(label: "camera.video.data")
     private var isConfiguring = false
     private var lastAudioLevelUpdate = Date.distantPast
+
+    let screenCaptureService = ScreenCaptureService()
+    private let screenRecordingService = ScreenRecordingService()
+    private let cameraRecordingService = CameraRecordingService()
+    var pendingScreenFilter: SCContentFilter?
 
     var session: AVCaptureSession {
         captureSession
@@ -229,17 +240,13 @@ class CameraService: NSObject, ObservableObject, CameraServiceProtocol {
             }
         }
 
-        movieOutput = AVCaptureMovieFileOutput()
-        if captureSession.canAddOutput(movieOutput) {
-            captureSession.addOutput(movieOutput)
-        } else {
-            DispatchQueue.main.async {
-                self.error = "Cannot add movie output"
-                self.isReady = false
-            }
-            captureSession.commitConfiguration()
-            isConfiguring = false
-            return
+        // Use the camera's native pixel format (420v YCbCr) — avoids double
+        // conversion (native→BGRA→YUV) that adds latency and drops frames.
+        videoDataOutput.videoSettings = [:]
+        videoDataOutput.alwaysDiscardsLateVideoFrames = true
+        if captureSession.canAddOutput(videoDataOutput) {
+            captureSession.addOutput(videoDataOutput)
+            videoDataOutput.setSampleBufferDelegate(self, queue: videoDataQueue)
         }
 
         if captureSession.canAddOutput(audioDataOutput) {
@@ -303,80 +310,166 @@ class CameraService: NSObject, ObservableObject, CameraServiceProtocol {
         guard !isRecording else { return }
         isRecording = true
 
-        sessionQueue.async { [weak self] in
-            guard let self = self else { return }
+        let mode = recordingMode
+        let filter = pendingScreenFilter
+        pendingScreenFilter = nil
 
-            guard self.captureSession.isRunning else {
+        if mode == .screenOnly {
+            // Screen-only: just start screen capture
+            guard let filter = filter else {
                 DispatchQueue.main.async {
+                    self.error = "No screen content selected"
                     self.isRecording = false
-                    self.error = "Camera session not running"
+                }
+                return
+            }
+            Task {
+                do {
+                    try await screenCaptureService.startCapture(filter: filter)
+                    let _ = try screenRecordingService.startRecording()
+                    screenCaptureService.sampleBufferHandler = { [weak self] sampleBuffer in
+                        self?.screenRecordingService.appendSampleBuffer(sampleBuffer)
+                    }
+                } catch {
+                    await MainActor.run {
+                        self.error = "Screen capture failed: \(error.localizedDescription)"
+                        self.isRecording = false
+                    }
+                }
+            }
+        } else if mode == .screenAndCamera {
+            // Screen + Camera: use AVAssetWriter for camera (bypasses movieOutput issues)
+            guard let filter = filter else {
+                DispatchQueue.main.async {
+                    self.error = "No screen content selected"
+                    self.isRecording = false
                 }
                 return
             }
 
-            guard self.movieOutput.connection(with: .video) != nil else {
-                DispatchQueue.main.async {
-                    self.isRecording = false
-                    self.error = "Video connection not available"
+            // Start camera recording (writer initializes lazily from first frame)
+            cameraRecordingService.startRecording()
+            print("[DEBUG-SVC] CameraRecordingService prepared (screenAndCamera)")
+
+            // Start screen capture
+            Task {
+                do {
+                    try await self.screenCaptureService.startCapture(filter: filter)
+                    let _ = try self.screenRecordingService.startRecording()
+                    self.screenCaptureService.sampleBufferHandler = { [weak self] sampleBuffer in
+                        self?.screenRecordingService.appendSampleBuffer(sampleBuffer)
+                    }
+                    print("[DEBUG-SVC] Screen capture started")
+                } catch {
+                    await MainActor.run {
+                        self.error = "Screen capture failed: \(error.localizedDescription)"
+                    }
                 }
-                return
             }
-
-            let tempDir = FileManager.default.temporaryDirectory
-            let fileName = "QuickCam_\(Date().timeIntervalSince1970).mov"
-            let fileURL = tempDir.appendingPathComponent(fileName)
-
-            try? FileManager.default.removeItem(at: fileURL)
-
-            self.movieOutput.startRecording(to: fileURL, recordingDelegate: self)
+        } else {
+            // Camera-only mode — use AVAssetWriter (writer initializes lazily from first frame)
+            cameraRecordingService.startRecording()
+            print("[DEBUG-SVC] CameraRecordingService prepared (cameraOnly)")
         }
     }
 
     func stopRecording() {
         guard isRecording else { return }
         isPaused = false
-        sessionQueue.async { [weak self] in
-            self?.movieOutput.stopRecording()
+
+        let mode = recordingMode
+
+        if mode == .screenAndCamera {
+            // Stop both screen and camera (AVAssetWriter-based)
+            Task {
+                let screenURL = await screenRecordingService.stopRecording()
+                await screenCaptureService.stopCapture()
+                let cameraURL = await cameraRecordingService.stopRecording()
+                print("[DEBUG-SVC] stopRecording screenAndCamera: screenURL=\(screenURL?.lastPathComponent ?? "nil"), cameraURL=\(cameraURL?.lastPathComponent ?? "nil")")
+
+                await MainActor.run {
+                    self.screenRecordedVideoURL = screenURL
+                    self.recordedVideoURL = cameraURL
+                    self.isRecording = false
+                    self.audioLevel = -160.0
+                    if cameraURL == nil {
+                        self.error = "Camera recording failed"
+                    }
+                    if screenURL == nil {
+                        self.error = "Screen recording failed"
+                    }
+                }
+            }
+        } else if mode == .screenOnly {
+            Task {
+                let screenURL = await screenRecordingService.stopRecording()
+                await screenCaptureService.stopCapture()
+
+                await MainActor.run {
+                    self.screenRecordedVideoURL = screenURL
+                    self.isRecording = false
+                    self.audioLevel = -160.0
+                    if screenURL != nil {
+                        self.recordedVideoURL = screenURL
+                    } else {
+                        self.error = "Screen recording failed"
+                    }
+                }
+            }
+        } else {
+            // Camera only — uses CameraRecordingService
+            Task {
+                let cameraURL = await cameraRecordingService.stopRecording()
+                await MainActor.run {
+                    self.isRecording = false
+                    self.isPaused = false
+                    self.audioLevel = -160.0
+                    if let url = cameraURL {
+                        self.recordedVideoURL = url
+                    } else {
+                        self.error = "Camera recording failed"
+                    }
+                }
+            }
         }
     }
 
     func pauseRecording() {
         guard isRecording, !isPaused else { return }
         isPaused = true
-        sessionQueue.async { [weak self] in
-            self?.movieOutput.pauseRecording()
-        }
+        cameraRecordingService.isPaused = true
     }
 
     func resumeRecording() {
         guard isRecording, isPaused else { return }
         isPaused = false
-        sessionQueue.async { [weak self] in
-            self?.movieOutput.resumeRecording()
-        }
+        cameraRecordingService.isPaused = false
     }
 }
 
-extension CameraService: AVCaptureFileOutputRecordingDelegate {
-    func fileOutput(_ output: AVCaptureFileOutput, didFinishRecordingTo outputFileURL: URL, from connections: [AVCaptureConnection], error: Error?) {
-        DispatchQueue.main.async {
-            self.isRecording = false
-            self.isPaused = false
-            self.audioLevel = -160.0
-            if let error = error {
-                self.error = error.localizedDescription
-            } else {
-                self.recordedVideoURL = outputFileURL
-            }
-        }
-    }
-}
-
-extension CameraService: AVCaptureAudioDataOutputSampleBufferDelegate {
+extension CameraService: AVCaptureVideoDataOutputSampleBufferDelegate, AVCaptureAudioDataOutputSampleBufferDelegate {
     func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
+        if output === videoDataOutput {
+            handleVideoOutput(sampleBuffer)
+        } else {
+            handleAudioOutput(sampleBuffer)
+        }
+    }
+
+    private func handleVideoOutput(_ sampleBuffer: CMSampleBuffer) {
+        guard isRecording, recordingMode != .screenOnly else { return }
+        cameraRecordingService.appendVideoSampleBuffer(sampleBuffer)
+    }
+
+    private func handleAudioOutput(_ sampleBuffer: CMSampleBuffer) {
+        // Forward audio to camera writer when recording with camera
+        if isRecording, recordingMode != .screenOnly {
+            cameraRecordingService.appendAudioSampleBuffer(sampleBuffer)
+        }
+
+        // Audio metering
         guard isRecording else { return }
 
-        // Throttle updates to ~15-20 per second (~60ms interval)
         let now = Date()
         guard now.timeIntervalSince(lastAudioLevelUpdate) >= 0.06 else { return }
         lastAudioLevelUpdate = now

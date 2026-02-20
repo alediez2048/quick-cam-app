@@ -11,6 +11,10 @@ struct PreviewView: View {
     let transcriptionProgress: String
     let isGeneratingPreview: Bool
     let previewPlayerItem: AVPlayerItem?
+    let recordingMode: RecordingMode
+    let screenRecordedVideoURL: URL?
+    let selectedLayout: ScreenCameraLayout
+    let bubblePosition: CameraBubblePosition
     let onSave: (String, Bool, Bool, CaptionStyle, TranscriptionLanguage, [TimedCaption], [CMTimeRange]) -> Void
     let onRetake: () -> Void
     let onPreview: (Bool, Bool, AspectRatioOption, CaptionStyle, TranscriptionLanguage, [TimedCaption], [CMTimeRange]) -> Void
@@ -51,7 +55,9 @@ struct PreviewView: View {
             }
         }
         .onAppear {
-            player = AVPlayer(url: videoURL)
+            let newPlayer = AVPlayer(url: videoURL)
+            newPlayer.isMuted = true
+            player = newPlayer
             NotificationCenter.default.addObserver(
                 forName: .AVPlayerItemDidPlayToEndTime,
                 object: player?.currentItem,
@@ -107,6 +113,11 @@ struct PreviewView: View {
                 Text("Preview")
                     .font(.headline)
                     .foregroundColor(.white)
+                if recordingMode != .cameraOnly {
+                    Text("(\(recordingMode == .screenOnly ? "Screen" : "Screen + Camera"))")
+                        .font(.caption)
+                        .foregroundColor(.gray)
+                }
                 Spacer()
             }
             .padding()

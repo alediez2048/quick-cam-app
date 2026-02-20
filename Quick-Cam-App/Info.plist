@@ -24,6 +24,8 @@
 	<string>Quick-Cam needs microphone access to record audio with videos</string>
 	<key>NSSpeechRecognitionUsageDescription</key>
 	<string>Quick-Cam needs speech recognition to auto-generate captions for your videos</string>
+	<key>NSScreenCaptureUsageDescription</key>
+	<string>Quick-Cam needs screen recording access to capture your desktop</string>
 	<key>NSPrincipalClass</key>
 	<string>NSApplication</string>
 </dict>
