@@ -26,7 +26,10 @@ struct CompositePreviewView: View {
     @ViewBuilder
     private var sideBySideLayout: some View {
         HStack(spacing: 0) {
-            // Screen on the left
+            // Camera on the left
+            CameraPreviewView(cameraViewModel: cameraViewModel)
+
+            // Screen on the right
             if let screenImage = screenImage {
                 Image(decorative: screenImage, scale: 1.0)
                     .resizable()
@@ -40,9 +43,6 @@ struct CompositePreviewView: View {
                             .foregroundColor(.gray)
                     )
             }
-
-            // Camera on the right
-            CameraPreviewView(cameraViewModel: cameraViewModel)
         }
     }
 
