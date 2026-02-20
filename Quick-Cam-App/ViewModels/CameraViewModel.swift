@@ -26,6 +26,14 @@ class CameraViewModel: ObservableObject {
     @Published var previewPlayerItem: AVPlayerItem?
     @Published var isGeneratingPreview = false
 
+    // Screen recording state
+    @Published var recordingMode: RecordingMode = .cameraOnly
+    @Published var selectedLayout: ScreenCameraLayout = .circleBubble
+    @Published var bubblePosition: CameraBubblePosition = .bottomRight
+    @Published var screenCaptureAuthorized = false
+    @Published var screenFrame: CGImage?
+    @Published var screenRecordedVideoURL: URL?
+
     let cameraService: any CameraServiceProtocol
     private let exportService = ExportService()
     private let transcriptionService = TranscriptionService()
@@ -51,6 +59,20 @@ class CameraViewModel: ObservableObject {
         self.selectedResolution = savedResolution
         self.isMirrored = UserDefaults.standard.bool(forKey: "isMirrored")
         self.isGridVisible = UserDefaults.standard.bool(forKey: "isGridVisible")
+
+        if let savedMode = UserDefaults.standard.string(forKey: "recordingMode"),
+           let mode = RecordingMode(rawValue: savedMode) {
+            self.recordingMode = mode
+        }
+        if let savedLayout = UserDefaults.standard.string(forKey: "screenCameraLayout"),
+           let layout = ScreenCameraLayout(rawValue: savedLayout) {
+            self.selectedLayout = layout
+        }
+        if let savedPos = UserDefaults.standard.string(forKey: "bubblePosition"),
+           let pos = CameraBubblePosition(rawValue: savedPos) {
+            self.bubblePosition = pos
+        }
+
         self.cameraService = cameraService
         cameraService.selectedResolution = savedResolution
 
@@ -79,6 +101,29 @@ class CameraViewModel: ObservableObject {
             .dropFirst()
             .sink { visible in
                 UserDefaults.standard.set(visible, forKey: "isGridVisible")
+            }
+            .store(in: &cancellables)
+
+        $recordingMode
+            .dropFirst()
+            .sink { [weak self] mode in
+                UserDefaults.standard.set(mode.rawValue, forKey: "recordingMode")
+                self?.error = nil
+                self?.cameraService.error = nil
+            }
+            .store(in: &cancellables)
+
+        $selectedLayout
+            .dropFirst()
+            .sink { layout in
+                UserDefaults.standard.set(layout.rawValue, forKey: "screenCameraLayout")
+            }
+            .store(in: &cancellables)
+
+        $bubblePosition
+            .dropFirst()
+            .sink { pos in
+                UserDefaults.standard.set(pos.rawValue, forKey: "bubblePosition")
             }
             .store(in: &cancellables)
     }
@@ -132,10 +177,34 @@ class CameraViewModel: ObservableObject {
                 UserDefaults.standard.set(resolution.rawValue, forKey: "selectedResolution")
             }
             .store(in: &cancellables)
+
+        service.$screenRecordedVideoURL
+            .receive(on: DispatchQueue.main)
+            .assign(to: &$screenRecordedVideoURL)
+
+        service.screenCaptureService.$isAuthorized
+            .receive(on: DispatchQueue.main)
+            .assign(to: &$screenCaptureAuthorized)
+
+        service.screenCaptureService.$latestFrame
+            .receive(on: DispatchQueue.main)
+            .assign(to: &$screenFrame)
     }
 
     func checkAuthorization() {
         cameraService.checkAuthorization()
+    }
+
+    func checkScreenCaptureAuthorization() {
+        if let service = cameraService as? CameraService {
+            service.screenCaptureService.checkAuthorization()
+        }
+    }
+
+    func requestScreenCaptureAuthorization() {
+        if let service = cameraService as? CameraService {
+            service.screenCaptureService.requestAuthorization()
+        }
     }
 
     func setupAndStartSession() {
@@ -152,16 +221,53 @@ class CameraViewModel: ObservableObject {
 
     func startRecording() {
         guard !isCountingDown && !isRecording else { return }
-        isCountingDown = true
-        countdownValue = 3
-        performCountdown()
+        // Clear any previous error before starting
+        error = nil
+        cameraService.error = nil
+        cameraService.recordingMode = recordingMode
+
+        // For screen capture modes, show the picker first, then start countdown
+        if recordingMode.needsScreenCapture {
+            Task {
+                do {
+                    if let service = cameraService as? CameraService {
+                        let filter = try await service.screenCaptureService.presentPicker()
+                        service.pendingScreenFilter = filter
+
+                        // The picker may have interrupted the camera session.
+                        // Restart it so movieOutput is ready when recording starts.
+                        if self.recordingMode.needsCamera {
+                            service.setupAndStartSession()
+                        }
+                    }
+                    await MainActor.run {
+                        self.isCountingDown = true
+                        self.countdownValue = 3
+                        self.performCountdown()
+                    }
+                } catch ScreenCaptureService.ScreenCaptureError.pickerCancelled {
+                    // User cancelled the picker, don't start recording
+                } catch {
+                    await MainActor.run {
+                        self.error = "Screen capture failed: \(error.localizedDescription)"
+                    }
+                }
+            }
+        } else {
+            isCountingDown = true
+            countdownValue = 3
+            performCountdown()
+        }
     }
 
     func stopRecording() {
+        print("[DEBUG-VM] stopRecording() called. isCountingDown=\(isCountingDown), isRecording=\(isRecording)")
         if isCountingDown {
+            print("[DEBUG-VM] isCountingDown=true, calling cancelCountdown() and returning early")
             cancelCountdown()
             return
         }
+        print("[DEBUG-VM] Forwarding to cameraService.stopRecording()")
         cameraService.stopRecording()
     }
 
@@ -252,17 +358,34 @@ class CameraViewModel: ObservableObject {
             }
 
             do {
-                let playerItem = try await exportService.buildPreviewPlayerItem(
-                    sourceURL: sourceURL,
-                    captions: captions,
-                    processedAudioURL: processedAudioURL,
-                    aspectRatio: aspectRatio,
-                    captionStyle: captionStyle,
-                    exclusionRanges: exclusionRanges
-                )
-                await MainActor.run {
-                    self.previewPlayerItem = playerItem
-                    self.isGeneratingPreview = false
+                if recordingMode == .screenAndCamera, let screenURL = screenRecordedVideoURL {
+                    let playerItem = try await exportService.buildScreenCameraPreviewPlayerItem(
+                        screenURL: screenURL,
+                        cameraURL: sourceURL,
+                        layout: selectedLayout,
+                        bubblePosition: bubblePosition,
+                        captions: captions,
+                        processedAudioURL: processedAudioURL,
+                        captionStyle: captionStyle,
+                        exclusionRanges: exclusionRanges
+                    )
+                    await MainActor.run {
+                        self.previewPlayerItem = playerItem
+                        self.isGeneratingPreview = false
+                    }
+                } else {
+                    let playerItem = try await exportService.buildPreviewPlayerItem(
+                        sourceURL: sourceURL,
+                        captions: captions,
+                        processedAudioURL: processedAudioURL,
+                        aspectRatio: aspectRatio,
+                        captionStyle: captionStyle,
+                        exclusionRanges: exclusionRanges
+                    )
+                    await MainActor.run {
+                        self.previewPlayerItem = playerItem
+                        self.isGeneratingPreview = false
+                    }
                 }
             } catch {
                 await MainActor.run {
@@ -320,15 +443,38 @@ class CameraViewModel: ObservableObject {
                 }
             }
 
-            exportService.exportToDownloads(sourceURL: sourceURL, title: title, captions: captions, processedAudioURL: processedAudioURL, aspectRatio: aspectRatio, captionStyle: captionStyle, exclusionRanges: exclusionRanges) { [weak self] success, path in
-                guard let self = self else { return }
-                self.isExporting = false
-                if success {
-                    self.loadPreviousRecordings()
-                } else {
-                    self.error = path ?? "Export failed"
+            if recordingMode == .screenAndCamera, let screenURL = screenRecordedVideoURL {
+                exportService.exportScreenCameraComposition(
+                    screenURL: screenURL,
+                    cameraURL: sourceURL,
+                    layout: selectedLayout,
+                    bubblePosition: bubblePosition,
+                    captions: captions,
+                    captionStyle: captionStyle,
+                    processedAudioURL: processedAudioURL,
+                    exclusionRanges: exclusionRanges,
+                    title: title
+                ) { [weak self] success, path in
+                    guard let self = self else { return }
+                    self.isExporting = false
+                    if success {
+                        self.loadPreviousRecordings()
+                    } else {
+                        self.error = path ?? "Export failed"
+                    }
+                    completion(success, path)
                 }
-                completion(success, path)
+            } else {
+                exportService.exportToDownloads(sourceURL: sourceURL, title: title, captions: captions, processedAudioURL: processedAudioURL, aspectRatio: aspectRatio, captionStyle: captionStyle, exclusionRanges: exclusionRanges) { [weak self] success, path in
+                    guard let self = self else { return }
+                    self.isExporting = false
+                    if success {
+                        self.loadPreviousRecordings()
+                    } else {
+                        self.error = path ?? "Export failed"
+                    }
+                    completion(success, path)
+                }
             }
         }
     }
@@ -354,5 +500,10 @@ class CameraViewModel: ObservableObject {
         recordedVideoURL = nil
         cachedProcessedAudioURL = nil
         cachedAudioSourceURL = nil
+        // Clean up screen recording temp file
+        if let screenURL = screenRecordedVideoURL {
+            try? FileManager.default.removeItem(at: screenURL)
+            screenRecordedVideoURL = nil
+        }
     }
 }

@@ -40,6 +40,17 @@
 		A22222220000000000000043 /* ComposedVideoPlayerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A22222220000000000000042 /* ComposedVideoPlayerView.swift */; };
 		A22222220000000000000045 /* PreviewOverlayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A22222220000000000000044 /* PreviewOverlayView.swift */; };
 		A22222220000000000000047 /* LiveCaptionOverlayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A22222220000000000000046 /* LiveCaptionOverlayView.swift */; };
+		I11111110000000000000001 /* RecordingMode.swift in Sources */ = {isa = PBXBuildFile; fileRef = I11111110000000000000011 /* RecordingMode.swift */; };
+		I11111110000000000000002 /* ScreenCameraLayout.swift in Sources */ = {isa = PBXBuildFile; fileRef = I11111110000000000000012 /* ScreenCameraLayout.swift */; };
+		I11111110000000000000003 /* CameraBubblePosition.swift in Sources */ = {isa = PBXBuildFile; fileRef = I11111110000000000000013 /* CameraBubblePosition.swift */; };
+		I11111110000000000000004 /* ScreenCaptureService.swift in Sources */ = {isa = PBXBuildFile; fileRef = I11111110000000000000014 /* ScreenCaptureService.swift */; };
+		I11111110000000000000005 /* ScreenRecordingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = I11111110000000000000015 /* ScreenRecordingService.swift */; };
+		I11111110000000000000006 /* ScreenCameraCompositor.swift in Sources */ = {isa = PBXBuildFile; fileRef = I11111110000000000000016 /* ScreenCameraCompositor.swift */; };
+		I11111110000000000000007 /* ScreenCameraCompositionInstruction.swift in Sources */ = {isa = PBXBuildFile; fileRef = I11111110000000000000017 /* ScreenCameraCompositionInstruction.swift */; };
+		I11111110000000000000008 /* CompositePreviewView.swift in Sources */ = {isa = PBXBuildFile; fileRef = I11111110000000000000018 /* CompositePreviewView.swift */; };
+		I11111110000000000000009 /* CameraBubblePositionPicker.swift in Sources */ = {isa = PBXBuildFile; fileRef = I11111110000000000000019 /* CameraBubblePositionPicker.swift */; };
+		I1111111000000000000000A /* ScreenPermissionView.swift in Sources */ = {isa = PBXBuildFile; fileRef = I1111111000000000000001A /* ScreenPermissionView.swift */; };
+		I1111111000000000000000B /* CameraRecordingService.swift in Sources */ = {isa = PBXBuildFile; fileRef = I1111111000000000000001B /* CameraRecordingService.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXContainerItemProxy section */
@@ -90,6 +101,17 @@
 		A22222220000000000000042 /* ComposedVideoPlayerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ComposedVideoPlayerView.swift; sourceTree = "<group>"; };
 		A22222220000000000000044 /* PreviewOverlayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PreviewOverlayView.swift; sourceTree = "<group>"; };
 		A22222220000000000000046 /* LiveCaptionOverlayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveCaptionOverlayView.swift; sourceTree = "<group>"; };
+		I11111110000000000000011 /* RecordingMode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RecordingMode.swift; sourceTree = "<group>"; };
+		I11111110000000000000012 /* ScreenCameraLayout.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenCameraLayout.swift; sourceTree = "<group>"; };
+		I11111110000000000000013 /* CameraBubblePosition.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraBubblePosition.swift; sourceTree = "<group>"; };
+		I11111110000000000000014 /* ScreenCaptureService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenCaptureService.swift; sourceTree = "<group>"; };
+		I11111110000000000000015 /* ScreenRecordingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenRecordingService.swift; sourceTree = "<group>"; };
+		I11111110000000000000016 /* ScreenCameraCompositor.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenCameraCompositor.swift; sourceTree = "<group>"; };
+		I11111110000000000000017 /* ScreenCameraCompositionInstruction.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenCameraCompositionInstruction.swift; sourceTree = "<group>"; };
+		I11111110000000000000018 /* CompositePreviewView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CompositePreviewView.swift; sourceTree = "<group>"; };
+		I11111110000000000000019 /* CameraBubblePositionPicker.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraBubblePositionPicker.swift; sourceTree = "<group>"; };
+		I1111111000000000000001A /* ScreenPermissionView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ScreenPermissionView.swift; sourceTree = "<group>"; };
+		I1111111000000000000001B /* CameraRecordingService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = CameraRecordingService.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -163,6 +185,9 @@
 				A22222220000000000000002 /* TimedCaption.swift */,
 				F11111110000000000000011 /* CaptionStyle.swift */,
 				G11111110000000000000011 /* TranscriptionLanguage.swift */,
+				I11111110000000000000011 /* RecordingMode.swift */,
+				I11111110000000000000012 /* ScreenCameraLayout.swift */,
+				I11111110000000000000013 /* CameraBubblePosition.swift */,
 			);
 			path = Models;
 			sourceTree = "<group>";
@@ -176,6 +201,11 @@
 				A22222220000000000000006 /* RecordingsRepository.swift */,
 				C11111110000000000000011 /* AudioProcessingService.swift */,
 				F11111110000000000000012 /* CaptionStyleEngine.swift */,
+				I11111110000000000000014 /* ScreenCaptureService.swift */,
+				I11111110000000000000015 /* ScreenRecordingService.swift */,
+				I11111110000000000000016 /* ScreenCameraCompositor.swift */,
+				I11111110000000000000017 /* ScreenCameraCompositionInstruction.swift */,
+				I1111111000000000000001B /* CameraRecordingService.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -205,6 +235,9 @@
 				A22222220000000000000042 /* ComposedVideoPlayerView.swift */,
 				A22222220000000000000044 /* PreviewOverlayView.swift */,
 				A22222220000000000000046 /* LiveCaptionOverlayView.swift */,
+				I11111110000000000000018 /* CompositePreviewView.swift */,
+				I11111110000000000000019 /* CameraBubblePositionPicker.swift */,
+				I1111111000000000000001A /* ScreenPermissionView.swift */,
 			);
 			path = Views;
 			sourceTree = "<group>";
@@ -330,6 +363,17 @@
 				A22222220000000000000043 /* ComposedVideoPlayerView.swift in Sources */,
 				A22222220000000000000045 /* PreviewOverlayView.swift in Sources */,
 				A22222220000000000000047 /* LiveCaptionOverlayView.swift in Sources */,
+				I11111110000000000000001 /* RecordingMode.swift in Sources */,
+				I11111110000000000000002 /* ScreenCameraLayout.swift in Sources */,
+				I11111110000000000000003 /* CameraBubblePosition.swift in Sources */,
+				I11111110000000000000004 /* ScreenCaptureService.swift in Sources */,
+				I11111110000000000000005 /* ScreenRecordingService.swift in Sources */,
+				I11111110000000000000006 /* ScreenCameraCompositor.swift in Sources */,
+				I11111110000000000000007 /* ScreenCameraCompositionInstruction.swift in Sources */,
+				I11111110000000000000008 /* CompositePreviewView.swift in Sources */,
+				I11111110000000000000009 /* CameraBubblePositionPicker.swift in Sources */,
+				I1111111000000000000000A /* ScreenPermissionView.swift in Sources */,
+				I1111111000000000000000B /* CameraRecordingService.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
