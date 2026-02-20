@@ -11,18 +11,20 @@ class CameraRecordingService {
     var isPaused = false
     private(set) var outputURL: URL?
 
-    /// Set to true when recording should start; the writer is initialized
-    /// lazily from the first video frame's actual dimensions.
     private var pendingStart = false
-
-    /// Audio samples that arrive before the first video frame initializes
-    /// the writer. Flushed once the session starts to keep A/V in sync.
     private var pendingAudioBuffers: [CMSampleBuffer] = []
+
+    /// The absolute PTS of the first sample — subtracted from all subsequent
+    /// timestamps so the output file starts at T=0.  This avoids precision
+    /// issues with large absolute capture-clock values (700 000+ seconds).
+    private var timebaseOffset: CMTime?
+
+    /// Fixed delay added to audio PTS so audio doesn't play ahead of video.
+    /// Tune this value if A/V sync is still off.
+    private let audioSyncDelay = CMTime(seconds: 1.0, preferredTimescale: 600)
 
     private let writerQueue = DispatchQueue(label: "camera.recording.writer")
 
-    /// Signals that recording should begin. The AVAssetWriter is created
-    /// lazily when the first video frame arrives (so we use the real dimensions).
     func startRecording() {
         writerQueue.async { [weak self] in
             guard let self = self else { return }
@@ -36,11 +38,10 @@ class CameraRecordingService {
             self.audioInput = nil
             self.outputURL = nil
             self.pendingAudioBuffers = []
+            self.timebaseOffset = nil
         }
     }
 
-    /// Called on writerQueue only. Creates the AVAssetWriter with the actual
-    /// frame dimensions and audio format detected from buffered samples.
     private func initializeWriter(width: Int, height: Int) throws {
         let tempDir = FileManager.default.temporaryDirectory
         let fileName = "QuickCam_Camera_\(Date().timeIntervalSince1970).mov"
@@ -64,7 +65,7 @@ class CameraRecordingService {
         let vInput = AVAssetWriterInput(mediaType: .video, outputSettings: videoSettings)
         vInput.expectsMediaDataInRealTime = true
 
-        // Detect actual audio format from buffered samples to avoid sample rate mismatch
+        // Detect actual audio format from buffered samples
         var sampleRate: Double = 48000
         var channelCount: UInt32 = 1
         if let firstAudio = pendingAudioBuffers.first,
@@ -72,24 +73,23 @@ class CameraRecordingService {
            let asbd = CMAudioFormatDescriptionGetStreamBasicDescription(formatDesc)?.pointee {
             sampleRate = asbd.mSampleRate
             channelCount = asbd.mChannelsPerFrame
-            print("[DEBUG-WRITER] Detected audio format: \(sampleRate) Hz, \(channelCount) ch")
         }
 
+        // Use Apple Lossless for the temp recording — zero encoder delay,
+        // so audio track duration matches video exactly. Gets re-encoded
+        // to AAC during export. AAC's 2112-sample priming delay was causing
+        // the audio track to be ~0.6s shorter than video.
         let audioSettings: [String: Any] = [
-            AVFormatIDKey: kAudioFormatMPEG4AAC,
+            AVFormatIDKey: kAudioFormatAppleLossless,
             AVSampleRateKey: sampleRate,
             AVNumberOfChannelsKey: channelCount,
-            AVEncoderBitRateKey: 128_000
+            AVEncoderBitDepthHintKey: 16
         ]
         let aInput = AVAssetWriterInput(mediaType: .audio, outputSettings: audioSettings)
         aInput.expectsMediaDataInRealTime = true
 
-        if writer.canAdd(vInput) {
-            writer.add(vInput)
-        }
-        if writer.canAdd(aInput) {
-            writer.add(aInput)
-        }
+        if writer.canAdd(vInput) { writer.add(vInput) }
+        if writer.canAdd(aInput) { writer.add(aInput) }
 
         self.assetWriter = writer
         self.videoInput = vInput
@@ -104,7 +104,34 @@ class CameraRecordingService {
 
         isWriting = true
         pendingStart = false
-        print("[DEBUG-WRITER] Writer initialized: \(width)x\(height), audio=\(sampleRate)Hz/\(channelCount)ch, status=\(writer.status.rawValue)")
+        print("[DEBUG-WRITER] Writer initialized: \(width)x\(height), audio=\(sampleRate)Hz/\(channelCount)ch")
+    }
+
+    /// Adjust a sample buffer's PTS to be relative to our timebase offset (start at 0),
+    /// with an optional extra delay added to the PTS.
+    private func adjustedBuffer(_ sampleBuffer: CMSampleBuffer, offset: CMTime, extraDelay: CMTime = .zero) -> CMSampleBuffer? {
+        let originalPTS = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
+        let adjustedPTS = CMTimeAdd(CMTimeSubtract(originalPTS, offset), extraDelay)
+        let duration = CMSampleBufferGetDuration(sampleBuffer)
+
+        var timing = CMSampleTimingInfo(
+            duration: duration,
+            presentationTimeStamp: adjustedPTS,
+            decodeTimeStamp: .invalid
+        )
+        var newBuffer: CMSampleBuffer?
+        let status = CMSampleBufferCreateCopyWithNewTiming(
+            allocator: nil,
+            sampleBuffer: sampleBuffer,
+            sampleTimingEntryCount: 1,
+            sampleTimingArray: &timing,
+            sampleBufferOut: &newBuffer
+        )
+        if status != noErr {
+            print("[DEBUG-WRITER] Failed to adjust buffer timing: \(status)")
+            return nil
+        }
+        return newBuffer
     }
 
     func appendVideoSampleBuffer(_ sampleBuffer: CMSampleBuffer) {
@@ -140,33 +167,38 @@ class CameraRecordingService {
             if !self.sessionStarted {
                 let videoPTS = CMSampleBufferGetPresentationTimeStamp(sampleBuffer)
 
-                // Use the earliest timestamp between buffered audio and this video frame
-                // so that no samples are trimmed by the writer.
-                var sessionStart = videoPTS
+                // Determine the earliest timestamp to use as our zero-point
+                var earliest = videoPTS
                 if let firstAudio = self.pendingAudioBuffers.first {
                     let audioPTS = CMSampleBufferGetPresentationTimeStamp(firstAudio)
-                    if CMTimeCompare(audioPTS, sessionStart) < 0 {
-                        sessionStart = audioPTS
+                    if CMTimeCompare(audioPTS, earliest) < 0 {
+                        earliest = audioPTS
                     }
                 }
+                self.timebaseOffset = earliest
 
-                writer.startSession(atSourceTime: sessionStart)
+                // Start session at T=0 (all timestamps will be offset)
+                writer.startSession(atSourceTime: .zero)
                 self.sessionStarted = true
-                print("[DEBUG-WRITER] Session started at \(CMTimeGetSeconds(sessionStart))s (video PTS=\(CMTimeGetSeconds(videoPTS))s, buffered audio=\(self.pendingAudioBuffers.count))")
+                print("[DEBUG-WRITER] Session started at T=0 (offset=\(CMTimeGetSeconds(earliest))s, buffered audio=\(self.pendingAudioBuffers.count))")
 
-                // Flush buffered audio
+                // Flush buffered audio with adjusted timestamps + sync delay
                 if let audioInput = self.audioInput {
                     for buffered in self.pendingAudioBuffers {
-                        if audioInput.isReadyForMoreMediaData {
-                            audioInput.append(buffered)
+                        if audioInput.isReadyForMoreMediaData,
+                           let adjusted = self.adjustedBuffer(buffered, offset: earliest, extraDelay: self.audioSyncDelay) {
+                            audioInput.append(adjusted)
                         }
                     }
                 }
                 self.pendingAudioBuffers = []
             }
 
-            if input.isReadyForMoreMediaData {
-                input.append(sampleBuffer)
+            guard let offset = self.timebaseOffset else { return }
+
+            if input.isReadyForMoreMediaData,
+               let adjusted = self.adjustedBuffer(sampleBuffer, offset: offset) {
+                input.append(adjusted)
             }
         }
     }
@@ -175,7 +207,7 @@ class CameraRecordingService {
         writerQueue.async { [weak self] in
             guard let self = self else { return }
 
-            // Buffer audio while waiting for the first video frame to initialize the writer
+            // Buffer audio while waiting for the first video frame
             if self.pendingStart || (self.isWriting && !self.sessionStarted) {
                 self.pendingAudioBuffers.append(sampleBuffer)
                 return
@@ -186,10 +218,12 @@ class CameraRecordingService {
                   self.sessionStarted,
                   let writer = self.assetWriter,
                   let input = self.audioInput,
+                  let offset = self.timebaseOffset,
                   writer.status == .writing else { return }
 
-            if input.isReadyForMoreMediaData {
-                input.append(sampleBuffer)
+            if input.isReadyForMoreMediaData,
+               let adjusted = self.adjustedBuffer(sampleBuffer, offset: offset, extraDelay: self.audioSyncDelay) {
+                input.append(adjusted)
             }
         }
     }
@@ -209,18 +243,48 @@ class CameraRecordingService {
                 self.isWriting = false
                 self.pendingStart = false
 
+                let outputURL = self.outputURL
                 self.videoInput?.markAsFinished()
                 self.audioInput?.markAsFinished()
                 writer.finishWriting {
                     if writer.status == .completed {
-                        print("[DEBUG-WRITER] Writer finished successfully: \(self.outputURL?.lastPathComponent ?? "nil")")
-                        continuation.resume(returning: self.outputURL)
+                        print("[DEBUG-WRITER] Writer finished successfully: \(outputURL?.lastPathComponent ?? "nil")")
+                        // Inspect raw file A/V sync
+                        if let url = outputURL {
+                            Task { await Self.inspectRawFile(url: url) }
+                        }
+                        continuation.resume(returning: outputURL)
                     } else {
                         print("[DEBUG-WRITER] Writer finished with status=\(writer.status.rawValue), error=\(writer.error?.localizedDescription ?? "none")")
                         continuation.resume(returning: nil)
                     }
                 }
             }
+        }
+    }
+
+    private static func inspectRawFile(url: URL) async {
+        do {
+            let asset = AVURLAsset(url: url)
+            let duration = try await asset.load(.duration)
+            print("[DEBUG-RAW-FILE] Duration: \(CMTimeGetSeconds(duration))s")
+            let videoTracks = try await asset.loadTracks(withMediaType: .video)
+            for (i, track) in videoTracks.enumerated() {
+                let tr = try await track.load(.timeRange)
+                print("[DEBUG-RAW-FILE] Video[\(i)]: start=\(CMTimeGetSeconds(tr.start))s duration=\(CMTimeGetSeconds(tr.duration))s")
+            }
+            let audioTracks = try await asset.loadTracks(withMediaType: .audio)
+            for (i, track) in audioTracks.enumerated() {
+                let tr = try await track.load(.timeRange)
+                print("[DEBUG-RAW-FILE] Audio[\(i)]: start=\(CMTimeGetSeconds(tr.start))s duration=\(CMTimeGetSeconds(tr.duration))s")
+            }
+            if let vt = videoTracks.first, let at = audioTracks.first {
+                let vr = try await vt.load(.timeRange)
+                let ar = try await at.load(.timeRange)
+                print("[DEBUG-RAW-FILE] Audio-Video duration diff: \(CMTimeGetSeconds(ar.duration) - CMTimeGetSeconds(vr.duration))s")
+            }
+        } catch {
+            print("[DEBUG-RAW-FILE] Inspection failed: \(error)")
         }
     }
 }
