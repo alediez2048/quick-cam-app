@@ -391,7 +391,7 @@ class ExportService {
             let instruction = AVMutableVideoCompositionInstruction()
             instruction.timeRange = CMTimeRange(start: .zero, duration: compositionDuration)
 
-            // Screen on left half
+            // Screen on right half
             let screenLayerInstruction = AVMutableVideoCompositionLayerInstruction(assetTrack: compScreenTrack)
             let screenScaleX = (outputWidth / 2) / screenSize.width
             let screenScaleY = outputHeight / screenSize.height
@@ -399,6 +399,7 @@ class ExportService {
             let screenScaledW = screenSize.width * screenScale
             let screenScaledH = screenSize.height * screenScale
             var screenTransform = CGAffineTransform.identity
+            screenTransform = screenTransform.translatedBy(x: outputWidth / 2, y: 0)
             screenTransform = screenTransform.scaledBy(x: screenScale, y: screenScale)
             screenTransform = screenTransform.translatedBy(
                 x: ((outputWidth / 2) - screenScaledW) / (2 * screenScale),
@@ -410,7 +411,7 @@ class ExportService {
 
             if let compCameraTrack = compCameraTrack {
                 let cameraLayerInstruction = AVMutableVideoCompositionLayerInstruction(assetTrack: compCameraTrack)
-                // Camera on right half - need camera natural size
+                // Camera on left half
                 let cameraAsset = AVAsset(url: cameraURL!)
                 let cameraTracks = try await cameraAsset.loadTracks(withMediaType: .video)
                 let camSize = try await cameraTracks.first!.load(.naturalSize)
@@ -420,7 +421,6 @@ class ExportService {
                 let camScaledW = camSize.width * camScale
                 let camScaledH = camSize.height * camScale
                 var camTransform = CGAffineTransform.identity
-                camTransform = camTransform.translatedBy(x: outputWidth / 2, y: 0)
                 camTransform = camTransform.scaledBy(x: camScale, y: camScale)
                 camTransform = camTransform.translatedBy(
                     x: ((outputWidth / 2) - camScaledW) / (2 * camScale),
