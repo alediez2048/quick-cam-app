@@ -86,6 +86,27 @@ class CameraService: NSObject, ObservableObject, CameraServiceProtocol {
             name: AVCaptureDevice.wasDisconnectedNotification,
             object: nil
         )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(sessionWasInterrupted),
+            name: .AVCaptureSessionWasInterrupted,
+            object: captureSession
+        )
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(sessionRuntimeError),
+            name: .AVCaptureSessionRuntimeError,
+            object: captureSession
+        )
+    }
+
+    @objc private func sessionWasInterrupted(_ notification: Notification) {
+        print("[DEBUG-SVC] ⚠️ Session interrupted! userInfo=\(notification.userInfo ?? [:])")
+    }
+
+    @objc private func sessionRuntimeError(_ notification: Notification) {
+        let error = notification.userInfo?[AVCaptureSessionErrorKey] as? Error
+        print("[DEBUG-SVC] ⚠️ Session runtime error: \(error?.localizedDescription ?? "unknown")")
     }
 
     @objc private func deviceConnected(_ notification: Notification) {
@@ -157,6 +178,7 @@ class CameraService: NSObject, ObservableObject, CameraServiceProtocol {
     private func configureSession() {
         guard !isConfiguring else { return }
         isConfiguring = true
+        print("[DEBUG-SVC] configureSession() called, isRecording=\(isRecording)")
 
         captureSession.beginConfiguration()
 
@@ -307,24 +329,46 @@ class CameraService: NSObject, ObservableObject, CameraServiceProtocol {
     }
 
     private func startCameraMovieRecording() {
-        // Safety: ensure movieFileOutput is connected to the session
-        guard captureSession.outputs.contains(movieFileOutput) else {
-            print("[DEBUG-SVC] movieFileOutput not in session — cannot record")
-            DispatchQueue.main.async {
-                self.error = "Camera recording not available"
-                self.isRecording = false
-            }
-            return
-        }
-
         didHandleCameraStop = false
 
-        let tempDir = FileManager.default.temporaryDirectory
-        let fileName = "QuickCam_Camera_\(Date().timeIntervalSince1970).mov"
-        let fileURL = tempDir.appendingPathComponent(fileName)
-        try? FileManager.default.removeItem(at: fileURL)
-        movieFileOutput.startRecording(to: fileURL, recordingDelegate: self)
-        print("[DEBUG-SVC] movieFileOutput.startRecording → \(fileName)")
+        // Must run on sessionQueue to avoid racing with configureSession()
+        sessionQueue.async { [weak self] in
+            guard let self = self else { return }
+
+            let outputs = self.captureSession.outputs
+            let running = self.captureSession.isRunning
+            let hasMovieOutput = outputs.contains(self.movieFileOutput)
+
+            print("[DEBUG-SVC] startCameraMovieRecording: session.isRunning=\(running), outputs=\(outputs.count), hasMovieOutput=\(hasMovieOutput)")
+
+            guard hasMovieOutput else {
+                print("[DEBUG-SVC] movieFileOutput not in session — cannot record")
+                DispatchQueue.main.async {
+                    self.error = "Camera recording not available"
+                    self.isRecording = false
+                }
+                return
+            }
+
+            let tempDir = FileManager.default.temporaryDirectory
+            let fileName = "QuickCam_Camera_\(Date().timeIntervalSince1970).mov"
+            let fileURL = tempDir.appendingPathComponent(fileName)
+            try? FileManager.default.removeItem(at: fileURL)
+
+            self.movieFileOutput.startRecording(to: fileURL, recordingDelegate: self)
+
+            // Check if recording actually started
+            let isNowRecording = self.movieFileOutput.isRecording
+            print("[DEBUG-SVC] movieFileOutput.startRecording → \(fileName), isRecording=\(isNowRecording)")
+
+            if !isNowRecording {
+                print("[DEBUG-SVC] WARNING: movieFileOutput failed to start recording!")
+                // Check connections
+                for conn in self.movieFileOutput.connections {
+                    print("[DEBUG-SVC]   connection: active=\(conn.isActive), enabled=\(conn.isEnabled)")
+                }
+            }
+        }
     }
 
     func startRecording() {
