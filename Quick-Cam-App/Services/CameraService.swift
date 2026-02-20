@@ -62,6 +62,11 @@ class CameraService: NSObject, ObservableObject, CameraServiceProtocol {
     /// into async/await when stopping camera recording.
     private var movieOutputCompletion: ((URL?) -> Void)?
 
+    /// Stores the URL from the delegate if it fires before stopCameraMovieRecording is called
+    /// (e.g., if recording finishes early due to an error or other condition).
+    private var pendingMovieOutputURL: URL?
+    private var movieOutputDelegateDidFire = false
+
     let screenCaptureService = ScreenCaptureService()
     private let screenRecordingService = ScreenRecordingService()
     var pendingScreenFilter: SCContentFilter?
@@ -317,6 +322,11 @@ class CameraService: NSObject, ObservableObject, CameraServiceProtocol {
             return
         }
 
+        // Reset delegate state
+        pendingMovieOutputURL = nil
+        movieOutputDelegateDidFire = false
+        movieOutputCompletion = nil
+
         let tempDir = FileManager.default.temporaryDirectory
         let fileName = "QuickCam_Camera_\(Date().timeIntervalSince1970).mov"
         let fileURL = tempDir.appendingPathComponent(fileName)
@@ -390,10 +400,22 @@ class CameraService: NSObject, ObservableObject, CameraServiceProtocol {
 
     /// Stops the movie file output and returns the recorded URL via async/await.
     private func stopCameraMovieRecording() async -> URL? {
+        // If the delegate already fired (recording finished early), return cached result
+        if movieOutputDelegateDidFire {
+            let url = pendingMovieOutputURL
+            print("[DEBUG-SVC] movieFileOutput delegate already fired, cached URL=\(url?.lastPathComponent ?? "nil")")
+            pendingMovieOutputURL = nil
+            movieOutputDelegateDidFire = false
+            return url
+        }
+
+        // If not recording, nothing to stop
         guard movieFileOutput.isRecording else {
-            print("[DEBUG-SVC] movieFileOutput not recording — nothing to stop")
+            print("[DEBUG-SVC] movieFileOutput.isRecording=false, delegateDidFire=false — recording may have failed to start")
             return nil
         }
+
+        print("[DEBUG-SVC] Stopping movieFileOutput...")
         return await withCheckedContinuation { continuation in
             self.movieOutputCompletion = { url in
                 continuation.resume(returning: url)
@@ -493,14 +515,18 @@ extension CameraService: AVCaptureFileOutputRecordingDelegate {
             }
         }
 
-        if success {
-            print("[DEBUG-SVC] movieFileOutput finished: \(outputFileURL.lastPathComponent)")
-            movieOutputCompletion?(outputFileURL)
+        let url: URL? = success ? outputFileURL : nil
+        print("[DEBUG-SVC] movieFileOutput delegate: success=\(success), url=\(url?.lastPathComponent ?? "nil"), error=\(error?.localizedDescription ?? "none")")
+
+        if let completion = movieOutputCompletion {
+            // stopCameraMovieRecording() is waiting — deliver the result
+            completion(url)
+            movieOutputCompletion = nil
         } else {
-            print("[DEBUG-SVC] movieFileOutput error: \(error?.localizedDescription ?? "unknown")")
-            movieOutputCompletion?(nil)
+            // Delegate fired before stop was called — cache the result
+            pendingMovieOutputURL = url
+            movieOutputDelegateDidFire = true
         }
-        movieOutputCompletion = nil
     }
 }
 
