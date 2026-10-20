@@ -12,9 +12,14 @@ jobs:
       - uses: actions/checkout@v4
       - name: Build and test
         run: |
+          set -o pipefail
           xcodebuild test \
             -project Quick-Cam-App.xcodeproj \
             -scheme Quick-Cam-App \
             -destination 'platform=macOS' \
-            CODE_SIGNING_ALLOWED=NO \
-            -quiet
+            CODE_SIGNING_ALLOWED=NO 2>&1 | tee xcodebuild.log
+      - name: Report errors
+        if: failure()
+        run: |
+          grep -E "error:|failed \(|\*\* (BUILD|TEST) FAILED" xcodebuild.log | sort -u | head -40 \
+            | while IFS= read -r line; do echo "::error::$line"; done
