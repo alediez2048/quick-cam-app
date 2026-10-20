@@ -47,7 +47,7 @@ struct RecordingControlsView: View {
                 .padding(.bottom, 40)
         }
         .onKeyPress(.escape) {
-            print("[DEBUG-KEY] Escape pressed. isRecording=\(cameraViewModel.isRecording), isCountingDown=\(cameraViewModel.isCountingDown)")
+            AppLog.debug("Escape pressed. isRecording=\(cameraViewModel.isRecording), isCountingDown=\(cameraViewModel.isCountingDown)")
             if cameraViewModel.isRecording || cameraViewModel.isCountingDown {
                 cameraViewModel.stopRecording()
                 return .handled
@@ -284,7 +284,7 @@ struct RecordingControlsView: View {
             }
 
             Button(action: {
-                print("[DEBUG-BUTTON] Stop/Record button CLICKED. isRecording=\(cameraViewModel.isRecording), isCountingDown=\(cameraViewModel.isCountingDown)")
+                AppLog.debug("Stop/Record button CLICKED. isRecording=\(cameraViewModel.isRecording), isCountingDown=\(cameraViewModel.isCountingDown)")
                 if cameraViewModel.isRecording || cameraViewModel.isCountingDown {
                     cameraViewModel.stopRecording()
                 } else {

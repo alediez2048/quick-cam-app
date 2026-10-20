@@ -98,13 +98,13 @@ class CameraRecordingService {
         self.sessionStarted = false
 
         guard writer.startWriting() else {
-            print("[DEBUG-WRITER] startWriting() failed: \(writer.error?.localizedDescription ?? "unknown")")
+            AppLog.error("startWriting() failed: \(writer.error?.localizedDescription ?? "unknown")")
             throw writer.error ?? NSError(domain: "CameraRecordingService", code: -1)
         }
 
         isWriting = true
         pendingStart = false
-        print("[DEBUG-WRITER] Writer initialized: \(width)x\(height), audio=\(sampleRate)Hz/\(channelCount)ch")
+        AppLog.debug("Writer initialized: \(width)x\(height), audio=\(sampleRate)Hz/\(channelCount)ch")
     }
 
     /// Adjust a sample buffer's PTS to be relative to our timebase offset (start at 0),
@@ -128,7 +128,7 @@ class CameraRecordingService {
             sampleBufferOut: &newBuffer
         )
         if status != noErr {
-            print("[DEBUG-WRITER] Failed to adjust buffer timing: \(status)")
+            AppLog.error("Failed to adjust buffer timing: \(status)")
             return nil
         }
         return newBuffer
@@ -145,7 +145,7 @@ class CameraRecordingService {
                 do {
                     try self.initializeWriter(width: Int(dims.width), height: Int(dims.height))
                 } catch {
-                    print("[DEBUG-WRITER] Failed to initialize writer: \(error)")
+                    AppLog.error("Failed to initialize writer: \(error)")
                     self.pendingStart = false
                     self.pendingAudioBuffers = []
                     return
@@ -159,7 +159,7 @@ class CameraRecordingService {
                   writer.status == .writing else {
                 if let writer = self.assetWriter, writer.status == .failed, !self.didLogFailure {
                     self.didLogFailure = true
-                    print("[DEBUG-WRITER] Writer failed: \(writer.error?.localizedDescription ?? "unknown")")
+                    AppLog.error("Writer failed: \(writer.error?.localizedDescription ?? "unknown")")
                 }
                 return
             }
@@ -180,7 +180,7 @@ class CameraRecordingService {
                 // Start session at T=0 (all timestamps will be offset)
                 writer.startSession(atSourceTime: .zero)
                 self.sessionStarted = true
-                print("[DEBUG-WRITER] Session started at T=0 (offset=\(CMTimeGetSeconds(earliest))s, buffered audio=\(self.pendingAudioBuffers.count))")
+                AppLog.debug("Session started at T=0 (offset=\(CMTimeGetSeconds(earliest))s, buffered audio=\(self.pendingAudioBuffers.count))")
 
                 // Flush buffered audio with adjusted timestamps + sync delay
                 if let audioInput = self.audioInput {
@@ -248,14 +248,14 @@ class CameraRecordingService {
                 self.audioInput?.markAsFinished()
                 writer.finishWriting {
                     if writer.status == .completed {
-                        print("[DEBUG-WRITER] Writer finished successfully: \(outputURL?.lastPathComponent ?? "nil")")
+                        AppLog.debug("Writer finished successfully: \(outputURL?.lastPathComponent ?? "nil")")
                         // Inspect raw file A/V sync
                         if let url = outputURL {
                             Task { await Self.inspectRawFile(url: url) }
                         }
                         continuation.resume(returning: outputURL)
                     } else {
-                        print("[DEBUG-WRITER] Writer finished with status=\(writer.status.rawValue), error=\(writer.error?.localizedDescription ?? "none")")
+                        AppLog.error("Writer finished with status=\(writer.status.rawValue), error=\(writer.error?.localizedDescription ?? "none")")
                         continuation.resume(returning: nil)
                     }
                 }
@@ -267,24 +267,24 @@ class CameraRecordingService {
         do {
             let asset = AVURLAsset(url: url)
             let duration = try await asset.load(.duration)
-            print("[DEBUG-RAW-FILE] Duration: \(CMTimeGetSeconds(duration))s")
+            AppLog.debug("Duration: \(CMTimeGetSeconds(duration))s")
             let videoTracks = try await asset.loadTracks(withMediaType: .video)
             for (i, track) in videoTracks.enumerated() {
                 let tr = try await track.load(.timeRange)
-                print("[DEBUG-RAW-FILE] Video[\(i)]: start=\(CMTimeGetSeconds(tr.start))s duration=\(CMTimeGetSeconds(tr.duration))s")
+                AppLog.debug("Video[\(i)]: start=\(CMTimeGetSeconds(tr.start))s duration=\(CMTimeGetSeconds(tr.duration))s")
             }
             let audioTracks = try await asset.loadTracks(withMediaType: .audio)
             for (i, track) in audioTracks.enumerated() {
                 let tr = try await track.load(.timeRange)
-                print("[DEBUG-RAW-FILE] Audio[\(i)]: start=\(CMTimeGetSeconds(tr.start))s duration=\(CMTimeGetSeconds(tr.duration))s")
+                AppLog.debug("Audio[\(i)]: start=\(CMTimeGetSeconds(tr.start))s duration=\(CMTimeGetSeconds(tr.duration))s")
             }
             if let vt = videoTracks.first, let at = audioTracks.first {
                 let vr = try await vt.load(.timeRange)
                 let ar = try await at.load(.timeRange)
-                print("[DEBUG-RAW-FILE] Audio-Video duration diff: \(CMTimeGetSeconds(ar.duration) - CMTimeGetSeconds(vr.duration))s")
+                AppLog.debug("Audio-Video duration diff: \(CMTimeGetSeconds(ar.duration) - CMTimeGetSeconds(vr.duration))s")
             }
         } catch {
-            print("[DEBUG-RAW-FILE] Inspection failed: \(error)")
+            AppLog.error("Inspection failed: \(error)")
         }
     }
 }

@@ -1,0 +1,20 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  build-and-test:
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+      - name: Build and test
+        run: |
+          xcodebuild test \
+            -project Quick-Cam-App.xcodeproj \
+            -scheme Quick-Cam-App \
+            -destination 'platform=macOS' \
+            CODE_SIGNING_ALLOWED=NO \
+            -quiet

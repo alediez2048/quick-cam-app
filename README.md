@@ -1,114 +1,67 @@
-# 📸 Quick Cam
+# Quick Cam
 
-A lightweight macOS app for recording vertical videos (9:16 aspect ratio) optimized for social media platforms like Instagram, TikTok, and YouTube Shorts.
+[![CI](https://github.com/alediez2048/quick-cam-app/actions/workflows/ci.yml/badge.svg)](https://github.com/alediez2048/quick-cam-app/actions/workflows/ci.yml)
 
-## ✨ Features
+A native macOS recorder for short-form video. Record your camera, your screen, or both at once, then export in the aspect ratio your platform wants, with styled captions generated on device.
 
-- **Vertical Video Recording** - Automatically crops and exports videos in 9:16 format
-- **Multi-Camera Support** - Switch between built-in and external cameras
-- **Auto-Generated Captions** - Uses speech recognition to add timed subtitles
-- **Previous Recordings** - Browse and replay your recorded videos
-- **High Quality Export** - Records at up to 4K resolution (2160×3840)
-- **Simple Interface** - Clean, intuitive SwiftUI design
+## Features
 
-## 🖥️ Requirements
+- **Three recording modes:** camera only, screen only, or screen and camera together. The combined mode offers three layouts (side by side, circle bubble, square bubble), and the bubble can go in any corner.
+- **Four aspect ratios at export:** 9:16, 16:9, 1:1 and 4:5, cropped from the full-resolution recording.
+- **Resolution choice:** 720p, 1080p or 4K capture.
+- **On-device captions** with Apple's Speech framework, in English, Spanish, Portuguese, French, German or Japanese. Captions are timed per word and burned into the export.
+- **Four caption styles:** karaoke (word highlight), pop-up, classic and boxed, with a choice of font and position.
+- **Transcript editor:** fix any misheard word before export, with playback following the transcript.
+- **Audio cleanup:** an optional denoise and loudness-normalisation pass (Accelerate) before export. If it fails, the original audio is kept.
+- **Recordings library:** previous recordings in a sidebar, ready to replay or re-export.
 
-- macOS 14.0 (Sonoma) or later
-- Camera access permission
-- Microphone access permission (for audio recording)
-- Speech recognition permission (for auto-captions)
+Exports are saved to your Downloads folder as `.mov`.
 
-## 🚀 Getting Started
+## Requirements
 
-### Building from Source
+- macOS 14 (Sonoma) or later
+- Xcode 16 or later to build
+- Permissions requested on first use: Camera, Microphone, Screen Recording (screen modes only) and Speech Recognition (captions only)
 
-1. Clone this repository:
+## Build and run
+
 ```bash
-git clone <repository-url>
-cd Quick-Cam-App
-```
-
-2. Open the project in Xcode:
-```bash
+git clone https://github.com/alediez2048/quick-cam-app.git
+cd quick-cam-app
 open Quick-Cam-App.xcodeproj
 ```
 
-3. Build and run (⌘R)
+Build and run with ⌘R. To run the tests from the command line:
 
-### First Launch
+```bash
+xcodebuild test -project Quick-Cam-App.xcodeproj -scheme Quick-Cam-App \
+  -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO
+```
 
-On first launch, Quick Cam will request the following permissions:
-- **Camera** - Required for video recording
-- **Microphone** - Required for audio recording
-- **Speech Recognition** - Optional, needed only for auto-caption feature
+CI runs the same command on every push.
 
-## 📖 How to Use
+## How it works
 
-1. **Select Camera** - Choose your camera from the dropdown (if multiple available)
-2. **Start Recording** - Click the red record button
-3. **Stop Recording** - Click the square stop button
-4. **Preview** - Review your video, add a title, and optionally enable captions
-5. **Save** - Export to your Downloads folder or retake
+1. **Capture.** `CameraService` runs the `AVCaptureSession`. `CameraRecordingService` writes camera frames with `AVAssetWriter` and starts the audio and video tracks on a shared clock, so they stay in sync. `ScreenCaptureService` captures the display with ScreenCaptureKit and `ScreenRecordingService` writes it to disk.
+2. **Compose.** In screen-and-camera mode, `ScreenCameraCompositor` is a custom `AVVideoCompositing` implementation that draws both sources into one frame using the chosen layout.
+3. **Transcribe.** `TranscriptionService` produces word-level timings with `SFSpeechRecognizer`, and `CaptionStyleEngine` turns them into animated caption layers.
+4. **Export.** `ExportService` crops to the target aspect ratio, applies the caption layers through `AVVideoCompositionCoreAnimationTool`, and replaces the audio track with the cleaned-up version when audio processing is on.
 
-### Auto-Generated Captions
-
-Toggle "Auto-generate captions" in the preview screen to:
-- Transcribe speech using Apple's Speech Recognition
-- Add timed subtitles burned into the video
-- Captions appear at the bottom of the frame
-
-## 📁 Project Structure
+## Project structure
 
 ```
 Quick-Cam-App/
-├── Quick-Cam-App/
-│   ├── Quick_Cam_AppApp.swift      # App entry point
-│   ├── ContentView.swift           # Main UI (camera, sidebar, navigation)
-│   ├── CameraManager.swift         # Core camera & video processing logic
-│   ├── PreviewView.swift           # Post-recording preview screen
-│   ├── Info.plist                  # App metadata & permissions
-│   ├── Quick_Cam_App.entitlements  # Sandbox permissions
-│   └── Assets.xcassets/            # App icons & colors
-└── Quick-Cam-App.xcodeproj/        # Xcode project
+├── Models/        Recording mode, aspect ratio, resolution, caption style, languages
+├── ViewModels/    CameraViewModel (app state), TranscriptPlaybackObserver
+├── Views/         SwiftUI views: controls, previews, caption and transcript editors
+├── Services/      Capture, screen recording, composition, transcription, audio, export
+└── ContentView.swift, PreviewView.swift
+Quick-Cam-AppTests/  Unit tests for the view model and audio processing
+documentation/       System design and test notes
 ```
 
-## 🛠️ Technical Details
+Logging goes through `os.Logger` (subsystem `com.quickcam.Quick-Cam-App`), so it shows in Console.app instead of stdout.
 
-### Technology Stack
-- **Language**: Swift
-- **UI Framework**: SwiftUI
-- **Key Frameworks**:
-  - AVFoundation (camera & video)
-  - AVKit (playback)
-  - Speech (transcription)
-  - Combine (reactive state)
+## Author
 
-### Video Processing Pipeline
-1. Records horizontal video at highest available quality
-2. During export, crops center portion to 9:16 vertical format (2160×3840)
-3. Optionally transcribes audio and adds caption layers
-4. Exports as `.mov` to Downloads folder
-
-### Architecture Highlights
-- **MVVM Pattern** - `CameraManager` as observable view model
-- **Async/Await** - Modern Swift concurrency for video export
-- **Background Processing** - Camera operations on dedicated queue
-- **SwiftUI + AppKit Bridge** - `NSViewRepresentable` for AVFoundation views
-
-## 🎯 Roadmap
-
-Potential future improvements:
-- [ ] Custom export location picker
-- [ ] Multiple aspect ratio options (1:1, 16:9, 4:5)
-- [ ] Video trimming and editing
-- [ ] Custom caption styling
-- [ ] Cloud upload integration
-- [ ] Batch export
-
-## 👤 Author
-
-[Add your information here]
-
-## 🙏 Acknowledgments
-
-Built with SwiftUI and AVFoundation
+Jorge Alejandro Diez · [github.com/alediez2048](https://github.com/alediez2048)

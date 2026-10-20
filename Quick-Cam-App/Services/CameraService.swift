@@ -1,4 +1,22 @@
 import AVFoundation
+import os
+
+/// App-wide logging through the unified logging system (Console.app,
+/// subsystem = bundle id). Debug messages are not persisted by default.
+enum AppLog {
+    private static let logger = Logger(
+        subsystem: Bundle.main.bundleIdentifier ?? "Quick-Cam-App",
+        category: "recording"
+    )
+
+    static func debug(_ message: String) {
+        logger.debug("\(message, privacy: .public)")
+    }
+
+    static func error(_ message: String) {
+        logger.error("\(message, privacy: .public)")
+    }
+}
 import AppKit
 import Accelerate
 import ScreenCaptureKit
@@ -101,12 +119,12 @@ class CameraService: NSObject, ObservableObject, CameraServiceProtocol {
     }
 
     @objc private func sessionWasInterrupted(_ notification: Notification) {
-        print("[DEBUG-SVC] ⚠️ Session interrupted! userInfo=\(notification.userInfo ?? [:])")
+        AppLog.error("Session interrupted! userInfo=\(notification.userInfo ?? [:])")
     }
 
     @objc private func sessionRuntimeError(_ notification: Notification) {
         let error = notification.userInfo?[AVCaptureSessionErrorKey] as? Error
-        print("[DEBUG-SVC] ⚠️ Session runtime error: \(error?.localizedDescription ?? "unknown")")
+        AppLog.error("Session runtime error: \(error?.localizedDescription ?? "unknown")")
     }
 
     @objc private func deviceConnected(_ notification: Notification) {
@@ -178,7 +196,7 @@ class CameraService: NSObject, ObservableObject, CameraServiceProtocol {
     private func configureSession() {
         guard !isConfiguring else { return }
         isConfiguring = true
-        print("[DEBUG-SVC] configureSession() called, isRecording=\(isRecording)")
+        AppLog.debug("configureSession() called, isRecording=\(isRecording)")
 
         captureSession.beginConfiguration()
 
@@ -339,10 +357,10 @@ class CameraService: NSObject, ObservableObject, CameraServiceProtocol {
             let running = self.captureSession.isRunning
             let hasMovieOutput = outputs.contains(self.movieFileOutput)
 
-            print("[DEBUG-SVC] startCameraMovieRecording: session.isRunning=\(running), outputs=\(outputs.count), hasMovieOutput=\(hasMovieOutput)")
+            AppLog.debug("startCameraMovieRecording: session.isRunning=\(running), outputs=\(outputs.count), hasMovieOutput=\(hasMovieOutput)")
 
             guard hasMovieOutput else {
-                print("[DEBUG-SVC] movieFileOutput not in session — cannot record")
+                AppLog.error("movieFileOutput not in session — cannot record")
                 DispatchQueue.main.async {
                     self.error = "Camera recording not available"
                     self.isRecording = false
@@ -359,13 +377,13 @@ class CameraService: NSObject, ObservableObject, CameraServiceProtocol {
 
             // Check if recording actually started
             let isNowRecording = self.movieFileOutput.isRecording
-            print("[DEBUG-SVC] movieFileOutput.startRecording → \(fileName), isRecording=\(isNowRecording)")
+            AppLog.debug("movieFileOutput.startRecording → \(fileName), isRecording=\(isNowRecording)")
 
             if !isNowRecording {
-                print("[DEBUG-SVC] WARNING: movieFileOutput failed to start recording!")
+                AppLog.error("movieFileOutput failed to start recording!")
                 // Check connections
                 for conn in self.movieFileOutput.connections {
-                    print("[DEBUG-SVC]   connection: active=\(conn.isActive), enabled=\(conn.isEnabled)")
+                    AppLog.debug("  connection: active=\(conn.isActive), enabled=\(conn.isEnabled)")
                 }
             }
         }
@@ -421,7 +439,7 @@ class CameraService: NSObject, ObservableObject, CameraServiceProtocol {
                     self.screenCaptureService.sampleBufferHandler = { [weak self] sampleBuffer in
                         self?.screenRecordingService.appendSampleBuffer(sampleBuffer)
                     }
-                    print("[DEBUG-SVC] Screen capture started")
+                    AppLog.debug("Screen capture started")
                 } catch {
                     await MainActor.run {
                         self.error = "Screen capture failed: \(error.localizedDescription)"
@@ -439,7 +457,7 @@ class CameraService: NSObject, ObservableObject, CameraServiceProtocol {
     private func handleCameraRecordingFinished(url: URL?) {
         // Guard against being called twice (delegate + manual fallback)
         guard !didHandleCameraStop else {
-            print("[DEBUG-SVC] handleCameraRecordingFinished already called — ignoring")
+            AppLog.debug("handleCameraRecordingFinished already called — ignoring")
             return
         }
         didHandleCameraStop = true
@@ -450,7 +468,7 @@ class CameraService: NSObject, ObservableObject, CameraServiceProtocol {
             Task {
                 let screenURL = await self.screenRecordingService.stopRecording()
                 await self.screenCaptureService.stopCapture()
-                print("[DEBUG-SVC] stopRecording screenAndCamera: screenURL=\(screenURL?.lastPathComponent ?? "nil"), cameraURL=\(url?.lastPathComponent ?? "nil")")
+                AppLog.debug("stopRecording screenAndCamera: screenURL=\(screenURL?.lastPathComponent ?? "nil"), cameraURL=\(url?.lastPathComponent ?? "nil")")
 
                 await MainActor.run {
                     self.screenRecordedVideoURL = screenURL
@@ -506,13 +524,13 @@ class CameraService: NSObject, ObservableObject, CameraServiceProtocol {
             // Camera-only or screenAndCamera — stop the movie output.
             // The delegate (fileOutput didFinishRecordingTo) calls
             // handleCameraRecordingFinished which drives the rest.
-            print("[DEBUG-SVC] stopRecording: calling movieFileOutput.stopRecording() (isRecording=\(movieFileOutput.isRecording))")
+            AppLog.debug("stopRecording: calling movieFileOutput.stopRecording() (isRecording=\(movieFileOutput.isRecording))")
             if movieFileOutput.isRecording {
                 movieFileOutput.stopRecording()
                 // delegate will call handleCameraRecordingFinished
             } else {
                 // Not recording — delegate won't fire, handle directly
-                print("[DEBUG-SVC] movieFileOutput not recording — handling directly")
+                AppLog.debug("movieFileOutput not recording — handling directly")
                 handleCameraRecordingFinished(url: nil)
             }
         }
@@ -540,7 +558,7 @@ class CameraService: NSObject, ObservableObject, CameraServiceProtocol {
 extension CameraService: AVCaptureFileOutputRecordingDelegate {
     func fileOutput(_ output: AVCaptureFileOutput, didStartRecordingTo fileURL: URL,
                     from connections: [AVCaptureConnection]) {
-        print("[DEBUG-SVC] movieFileOutput didStartRecording: \(fileURL.lastPathComponent)")
+        AppLog.debug("movieFileOutput didStartRecording: \(fileURL.lastPathComponent)")
     }
 
     func fileOutput(_ output: AVCaptureFileOutput, didFinishRecordingTo outputFileURL: URL,
@@ -555,7 +573,7 @@ extension CameraService: AVCaptureFileOutputRecordingDelegate {
         }
 
         let url: URL? = success ? outputFileURL : nil
-        print("[DEBUG-SVC] movieFileOutput delegate didFinish: success=\(success), url=\(url?.lastPathComponent ?? "nil"), error=\(error?.localizedDescription ?? "none")")
+        AppLog.debug("movieFileOutput delegate didFinish: success=\(success), url=\(url?.lastPathComponent ?? "nil"), error=\(error?.localizedDescription ?? "none")")
 
         // Always deliver via handleCameraRecordingFinished.
         // If stopRecording() already called movieFileOutput.stopRecording(), this

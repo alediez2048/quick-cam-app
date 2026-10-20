@@ -261,13 +261,13 @@ class CameraViewModel: ObservableObject {
     }
 
     func stopRecording() {
-        print("[DEBUG-VM] stopRecording() called. isCountingDown=\(isCountingDown), isRecording=\(isRecording)")
+        AppLog.debug("stopRecording() called. isCountingDown=\(isCountingDown), isRecording=\(isRecording)")
         if isCountingDown {
-            print("[DEBUG-VM] isCountingDown=true, calling cancelCountdown() and returning early")
+            AppLog.debug("isCountingDown=true, calling cancelCountdown() and returning early")
             cancelCountdown()
             return
         }
-        print("[DEBUG-VM] Forwarding to cameraService.stopRecording()")
+        AppLog.debug("Forwarding to cameraService.stopRecording()")
         cameraService.stopRecording()
     }
 
@@ -349,7 +349,7 @@ class CameraViewModel: ObservableObject {
                         cachedProcessedAudioURL = processedAudioURL
                         cachedAudioSourceURL = sourceURL
                     } catch {
-                        print("Audio processing failed, falling back to original audio: \(error)")
+                        AppLog.error("Audio processing failed, falling back to original audio: \(error)")
                     }
                     await MainActor.run {
                         self.isProcessingAudio = false
@@ -435,7 +435,7 @@ class CameraViewModel: ObservableObject {
                         cachedProcessedAudioURL = processedAudioURL
                         cachedAudioSourceURL = sourceURL
                     } catch {
-                        print("Audio processing failed, falling back to original audio: \(error)")
+                        AppLog.error("Audio processing failed, falling back to original audio: \(error)")
                     }
                     await MainActor.run {
                         self.isProcessingAudio = false
