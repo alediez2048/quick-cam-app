@@ -105,10 +105,6 @@ Potential future improvements:
 - [ ] Cloud upload integration
 - [ ] Batch export
 
-## 📝 License
-
-[Add your license here]
-
 ## 👤 Author
 
 [Add your information here]

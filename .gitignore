@@ -112,3 +112,7 @@ iOSInjectionProject/
 Network Trash Folder
 Temporary Items
 .apdisk
+
+# Local AI tooling
+.cursor/
+.claude/
