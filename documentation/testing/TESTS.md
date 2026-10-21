@@ -1,29 +1,20 @@
-# Quick Cam — Testing Strategy
+# Quick Cam: Testing
 
-## Philosophy
+## Automated tests
 
-Test business logic in Services and ViewModel. Camera and recording features require manual testing due to hardware dependencies.
+XCTest, in `Quick-Cam-AppTests/`. CI runs them on every push with:
 
-## Stack
+```bash
+xcodebuild test -project Quick-Cam-App.xcodeproj -scheme Quick-Cam-App \
+  -destination 'platform=macOS' CODE_SIGNING_ALLOWED=NO
+```
 
-TBD — XCTest or Swift Testing (to be decided when tests are added).
+| File | What it covers |
+|---|---|
+| `AudioProcessingServiceTests.swift` | The audio cleanup pipeline: steps run in order, output files are valid audio of the same length, denoise lowers the noise floor while keeping a speech-like tone, and normalize lifts quiet audio without clipping. |
+| `CameraViewModelTests.swift` | Recording state: the countdown, cancelling during the countdown, pause and resume, and the audio level the UI shows. The camera is replaced by `MockCameraService`. |
 
-## Coverage Targets
-
-| Layer | Coverage | Approach |
-|---|---|---|
-| Models | Medium | Unit tests for data structures |
-| Services | High | Unit tests with mocked dependencies |
-| ViewModel | High | Integration tests with service mocks |
-| Views | Low | Manual testing only |
-
-## Per-Ticket Testing Checklist
-
-For each ticket, verify:
-- [ ] Project compiles with zero errors
-- [ ] No new warnings introduced
-- [ ] All existing features still work (see Manual Testing below)
-- [ ] New code follows architecture rules from system-design.md
+Capture, screen recording and export depend on real cameras, screens and permissions, so they are checked by hand with the steps below.
 
 ## Manual Testing Procedures
 
@@ -44,7 +35,7 @@ For each ticket, verify:
 1. After recording, enter an optional title
 2. Click Save
 3. Verify file appears in Downloads folder
-4. Open the exported file — verify 9:16 aspect ratio
+4. Open the exported file and check it has the aspect ratio you picked (9:16, 16:9, 1:1 or 4:5)
 5. Verify video plays correctly
 
 ### Captions
