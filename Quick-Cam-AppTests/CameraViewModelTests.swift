@@ -14,8 +14,11 @@ class MockCameraService: CameraServiceProtocol {
     var isPaused = false
     var audioLevel: Float = -160.0
     var selectedResolution: ResolutionOption = .hd1080p
+    var recordingMode: RecordingMode = .cameraOnly
+    var screenRecordedVideoURL: URL?
 
     var session: AVCaptureSession { AVCaptureSession() }
+    let sessionQueue = DispatchQueue(label: "MockCameraService.session")
 
     var startRecordingCallCount = 0
     var stopRecordingCallCount = 0
